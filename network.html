@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="归云独立知识网络工作区。" />
+    <title>归云·知脉｜归云网络</title>
+    <link rel="stylesheet" href="/assets/styles/styles.css" />
+  </head>
+  <body class="network-page">
+    <header class="topbar network-topbar">
+      <a class="brand brand-link" href="/"><b>归云·知脉</b><small>归云网络工作区</small></a>
+      <nav>
+        <a class="button" href="/">← 返回阅读</a>
+        <span id="api-state" class="badge">检查接口…</span>
+        <a id="login" class="button primary" href="/api/auth/zhihu/start">知乎登录</a>
+      </nav>
+    </header>
+
+    <main class="network-page-layout">
+      <aside class="network-navigation">
+        <div class="network-page-heading">
+          <span class="archive-kicker">你的知识空间</span>
+          <h1>归云网络</h1>
+          <p>切换网络不会重置画布中的聚焦、选择与浏览历史。</p>
+        </div>
+        <label class="network-select-label" for="network-select">当前网络</label>
+        <select id="network-select" aria-label="切换知识网络"></select>
+        <button id="create-network" class="primary wide-button">＋ 新建网络</button>
+        <dl class="network-stats">
+          <div><dt id="node-count">0</dt><dd>节点</dd></div>
+          <div><dt id="edge-count">0</dt><dd>关系</dd></div>
+        </dl>
+        <section class="network-principle">
+          <b>人选择，AI 连接</b>
+          <p>AI 不会创建节点，所有连接和总结都需要你确认。</p>
+        </section>
+      </aside>
+
+      <section class="network-canvas-panel network">
+        <header class="network-canvas-header">
+          <div><span class="archive-kicker">当前画布</span><h2 id="active-network-name">默认网络</h2></div>
+          <div class="actions">
+            <button id="integrate-new" class="integrate-new primary"><span>一键整合新增节点</span><b id="new-node-count">0</b></button>
+            <button id="ai-connect" class="primary">AI 连接节点</button>
+            <button id="ai-node">总结节点</button>
+            <button id="ai-network">总结网络</button>
+          </div>
+        </header>
+        <div id="graph"></div>
+        <div id="summary" class="summary">AI 不会创建节点；连接和总结都需要你确认。</div>
+      </section>
+
+      <aside class="network-inspector">
+        <section>
+          <div class="heading"><b>对象详情</b><small>点击节点或关系</small></div>
+          <div id="node-detail" class="detail"><p>选择节点或关系查看来源、说明和编辑操作。</p></div>
+        </section>
+        <section class="proposal-panel">
+          <div class="heading"><b>待确认草案</b><small>不会自动写入</small></div>
+          <div id="proposals"></div>
+        </section>
+      </aside>
+    </main>
+
+    <div id="network-dialog" class="modal" role="dialog" aria-modal="true" hidden>
+      <form id="network-form">
+        <h2>新建知识网络</h2>
+        <p class="empty">不同网络的节点、关系、总结和 AI 草案彼此隔离。</p>
+        <label>网络名称<input id="network-name" maxlength="60" placeholder="例如：大学生职业成长" required /></label>
+        <div><button type="button" id="network-cancel">取消</button><button class="primary">创建并切换</button></div>
+      </form>
+    </div>
+
+    <div id="toast"></div>
+    <script type="module" src="/src/network-app.js"></script>
+  </body>
+</html>

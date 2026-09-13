@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: guiyun-zhimai
+    runtime: docker
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: ZHIHU_ACCESS_SECRET
+        sync: false
+      - key: ZHIHU_OAUTH_APP_ID
+        sync: false
+      - key: ZHIHU_OAUTH_APP_KEY
+        sync: false
+      - key: ZHIHU_OAUTH_REDIRECT_URI
+        sync: false

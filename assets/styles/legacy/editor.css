@@ -1,0 +1,12 @@
+.network #graph svg{pointer-events:auto}
+.network #graph .edge-visible{pointer-events:none}
+.network #graph .edge-visible.active{stroke:#0f766e;stroke-width:3;opacity:1}
+.network #graph .edge-hit{fill:none;stroke:transparent;stroke-width:16;cursor:pointer;pointer-events:stroke}
+.network .graph-node.focused{border-color:#0f766e}
+.detail-heading{display:flex;align-items:center;justify-content:space-between}
+.object-kind{color:var(--muted);font-size:11px;letter-spacing:.12em}
+.edge-endpoints{display:flex;align-items:center;gap:8px;padding:10px;border-radius:9px;background:#f0fdfa;color:#134e4a}
+.object-actions{padding-top:10px;border-top:1px solid var(--line)}
+button.danger{border-color:#fecaca;color:#b42318;background:#fff7f7}
+button.danger:hover{border-color:#ef4444;background:#fef2f2}
+.modal select{border:1px solid var(--line);border-radius:9px;padding:10px;font:inherit;background:#fff}

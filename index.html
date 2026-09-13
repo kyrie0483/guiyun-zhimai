@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="把知乎和个人阅读中的关键文段归档为可回跳节点，再由 AI 辅助连接与总结。"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2218%22 fill=%22%2312483d%22/><text x=%2232%22 y=%2244%22 text-anchor=%22middle%22 font-size=%2238%22 fill=%22white%22>归</text></svg>"
+    />
+    <title>归云·知脉｜阅读</title>
+    <link rel="stylesheet" href="/assets/styles/styles.css" />
+  </head>
+  <body class="reading-page">
+    <header class="topbar">
+      <a class="brand brand-link" href="/">
+        <b>归云·知脉</b><small>阅读与主动归档</small>
+      </a>
+      <nav>
+        <button id="hot">知乎热榜</button>
+        <a id="network-link" class="button network-entry" href="/network">
+          <span>0 节点</span><b>进入归云网络 →</b>
+        </a>
+        <span id="api-state" class="badge">检查接口…</span>
+        <a id="login" class="button primary" href="/api/auth/zhihu/start">知乎登录</a>
+      </nav>
+    </header>
+
+    <section class="searchbar">
+      <form id="search-form">
+        <input
+          id="search-input"
+          maxlength="200"
+          placeholder="搜索知乎真实经验，例如：大学生第一份实习"
+        />
+        <button class="primary">搜索知乎</button>
+        <button type="button" id="add-reading">粘贴文章</button>
+        <label class="button file-button">
+          导入 .md
+          <input id="markdown-file" type="file" accept=".md,text/markdown,text/plain" />
+        </label>
+      </form>
+      <p id="search-message">搜索和导入只提供阅读来源，只有你的主动归档才会进入网络。</p>
+    </section>
+
+    <main class="workspace reading-workspace">
+      <aside class="panel results">
+        <div class="heading"><b>阅读来源</b><small>点击后进入正文</small></div>
+        <div id="personal-sources"></div>
+        <div class="source-divider">知乎发现</div>
+        <div id="results"></div>
+      </aside>
+      <section class="panel reader">
+        <div id="reader-empty" class="empty hero">
+          <b>从一段真实阅读开始</b>
+          <p>搜索知乎、粘贴文章或导入 Markdown，选择文段或整篇归档。</p>
+        </div>
+        <div id="reader-view" hidden>
+          <header>
+            <span id="source-badge" class="badge">知乎来源</span>
+            <h1 id="article-title"></h1>
+            <p id="article-meta"></p>
+            <div>
+              <button id="archive-article" class="guiyun-reader-archive">
+                <span class="guiyun-mark">归</span><span>归档文档至网络</span>
+              </button>
+              <a
+                id="open-original"
+                class="button"
+                target="_blank"
+                rel="noopener noreferrer"
+              >打开原文</a>
+            </div>
+          </header>
+          <article id="article-content"></article>
+          <p class="tip">选中文字后点击浮动按钮；归档完成后可进入独立的归云网络页面。</p>
+        </div>
+      </section>
+    </main>
+
+    <div id="selection-popover" class="popover guiyun-selection-popover" role="toolbar" aria-label="所选文字操作" hidden>
+      <div id="selection-actions" class="selection-tool-group">
+        <button id="copy-selection" class="selection-tool" type="button" aria-label="复制所选文字" title="复制所选文字">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg>
+        </button>
+        <button id="archive-selection" class="selection-tool" type="button" aria-label="归档所选对象至网络" title="归档所选对象至网络">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 5 4 12l8 7 7-9M7 5l5 14"></path><circle cx="7" cy="5" r="2"></circle><circle cx="4" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle><circle cx="19" cy="10" r="2"></circle></svg>
+        </button>
+        <button id="highlight-selection" class="selection-tool" type="button" aria-label="为所选文字添加高亮" title="添加高亮">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m9 11-6 6v3h9l3-3"></path><path d="m22 12-7.2 7.2a2 2 0 0 1-2.8 0l-7.2-7.2a2 2 0 0 1 0-2.8L12 2z"></path></svg>
+        </button>
+      </div>
+      <div id="highlight-colors" class="selection-tool-group highlight-colors" aria-label="选择高亮颜色" hidden>
+        <button type="button" data-highlight-color="yellow" aria-label="使用黄色高亮所选文字" title="黄色"></button>
+        <button type="button" data-highlight-color="red" aria-label="使用红色高亮所选文字" title="红色"></button>
+        <button type="button" data-highlight-color="orange" aria-label="使用橙色高亮所选文字" title="橙色"></button>
+        <button type="button" data-highlight-color="green" aria-label="使用绿色高亮所选文字" title="绿色"></button>
+        <button type="button" data-highlight-color="purple" aria-label="使用紫色高亮所选文字" title="紫色"></button>
+        <button id="remove-highlight" class="remove-highlight" type="button" aria-label="取消所选文字的高亮" title="取消高亮">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 21 4-4"></path><path d="m5.5 13.5 5 5a2 2 0 0 0 2.8 0l6.2-6.2a2 2 0 0 0 0-2.8l-5-5a2 2 0 0 0-2.8 0l-6.2 6.2a2 2 0 0 0 0 2.8Z"></path><path d="M14 19h7"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="archive-dialog" class="modal archive-picker" role="dialog" aria-modal="true" hidden>
+      <section class="archive-picker-card">
+        <header>
+          <div><span class="archive-kicker">归云 · 主动归档</span><h2>选择目标网络</h2></div>
+          <button type="button" id="archive-cancel" class="archive-close" aria-label="关闭">×</button>
+        </header>
+        <div id="archive-source-summary" class="archive-source-summary"></div>
+        <div id="archive-targets" class="archive-targets" role="list"></div>
+        <p class="archive-flow-note">这里只归档节点，不自动调用 AI。进入网络后可一次整合所有新增节点。</p>
+      </section>
+    </div>
+
+    <div id="reading-dialog" class="modal" role="dialog" aria-modal="true" hidden>
+      <form id="reading-form">
+        <h2>添加个人阅读</h2>
+        <p class="empty">内容只作为阅读来源保存，不会自动生成节点。</p>
+        <label>标题<input id="reading-title" maxlength="120" required /></label>
+        <label>原文链接（可选）<input id="reading-url" type="url" maxlength="2000" placeholder="https://" /></label>
+        <label>文章或 Markdown<textarea id="reading-content" maxlength="2097152" required></textarea></label>
+        <div><button type="button" id="reading-cancel">取消</button><button class="primary">保存并阅读</button></div>
+      </form>
+    </div>
+
+    <aside id="archive-success" class="archive-success" aria-live="polite" hidden>
+      <button id="archive-success-close" aria-label="关闭">×</button>
+      <span class="guiyun-mark">归</span>
+      <div><b id="archive-success-message">归档完成</b><small>节点已加入待整合队列，可前往网络统一处理。</small></div>
+      <a id="archive-success-link" class="button primary" href="/network">前往网络</a>
+    </aside>
+
+    <nav class="mobile-tabs" aria-label="移动端阅读工作区">
+      <button data-panel="sources" class="active">阅读来源</button>
+      <button data-panel="reader">正文阅读</button>
+    </nav>
+    <div id="toast"></div>
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

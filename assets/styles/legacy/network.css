@@ -1,0 +1,21 @@
+.network .heading > div {
+  display: grid;
+  gap: 3px;
+}
+.network-picker {
+  display: flex;
+  gap: 7px;
+  padding: 10px 10px 0;
+}
+.network-picker select {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  padding: 9px 11px;
+  color: var(--ink);
+  font: inherit;
+}
+.file-button input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.source-divider{padding:9px 14px;border-block:1px solid var(--line);background:#f7f9fc;color:var(--muted);font-size:12px;font-weight:600}.source-empty{padding:8px 14px 12px;margin:0}.personal-source{background:#f8fbff;border-color:#c9daf2}.reader article h1,.reader article h2,.reader article h3{line-height:1.35;margin:1.4em 0 .6em}.reader article blockquote{margin:1em 0;padding:.4em 1em;border-left:4px solid #8bb8ee;background:#f5f8fc;color:#4f6078}.reader article pre{overflow:auto;padding:15px;border-radius:10px;background:#172033;color:#edf4ff}.reader article code{font-family:Consolas,monospace}.reader article a{color:var(--blue);text-decoration:underline;text-underline-offset:3px}.reader article li{margin:.35em 0}#reading-content{min-height:230px}
+.network #graph{height:380px;border-color:#d6e0ec;background-color:#f8fafc;background-image:linear-gradient(#dce4ee66 1px,transparent 1px),linear-gradient(90deg,#dce4ee66 1px,transparent 1px),radial-gradient(circle at 50% 40%,#fff 0,#f7fafc 72%);background-size:24px 24px,24px 24px,100% 100%;box-shadow:inset 0 1px 0 #fff,0 8px 30px #3341550d}.network #graph svg path{fill:none;stroke:#7f94ad;stroke-width:1.7;opacity:.72}.network #graph svg text{font-size:10px;fill:#64748b}.graph-watermark{position:absolute;right:12px;bottom:9px;color:#94a3b8;font:600 10px/1 "Microsoft YaHei",sans-serif;letter-spacing:.18em}.network .graph-node{width:auto;max-width:148px;min-width:78px;min-height:38px;gap:7px;padding:8px 11px;border-color:#cbd8e8;border-radius:999px;background:#fffffff2;color:#334155;box-shadow:0 7px 20px #3341551a;backdrop-filter:blur(8px);white-space:nowrap}.network .graph-node i{width:8px;height:8px;flex:none;border-radius:50%;background:#2c8a83;box-shadow:0 0 0 4px #dff3f0}.network .graph-node span{overflow:hidden;text-overflow:ellipsis}.network .graph-node:hover{border-color:#2c8a83;transform:translate(-50%,-50%) translateY(-2px);box-shadow:0 10px 24px #2c8a8329}.network .graph-node.selected{border-color:#155e75;background:#ecfeff;color:#164e63;box-shadow:0 0 0 3px #a5f3fc80,0 10px 25px #155e7530}

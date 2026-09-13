@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="查看知乎授权用户的基础资料、关注与公开创作。" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2218%22 fill=%22%2312483d%22/><text x=%2232%22 y=%2244%22 text-anchor=%22middle%22 font-size=%2238%22 fill=%22white%22>归</text></svg>" />
+    <title>我的知乎｜归云·知脉</title>
+    <link rel="stylesheet" href="/assets/styles/styles.css" />
+  </head>
+  <body class="profile-page">
+    <header class="topbar profile-topbar">
+      <a class="brand brand-link" href="/"><b>归云·知脉</b><small>我的知乎</small></a>
+      <nav><a class="button" href="/">返回阅读</a><button id="logout">退出登录</button></nav>
+    </header>
+    <main class="profile-shell">
+      <section id="profile-card" class="profile-card" aria-live="polite">
+        <div id="profile-avatar" class="profile-avatar" aria-hidden="true">知</div>
+        <div><span class="profile-kicker">知乎 OAuth 已授权</span><h1 id="profile-name">正在读取用户资料…</h1><p id="profile-headline">请稍候</p></div>
+      </section>
+      <section class="profile-content">
+        <div class="profile-tabs" role="tablist" aria-label="知乎用户信息">
+          <button id="followees-tab" class="active" role="tab" aria-selected="true" data-tab="followees">关注的人</button>
+          <button id="contents-tab" role="tab" aria-selected="false" data-tab="contents">创作信息</button>
+        </div>
+        <div id="profile-message" class="profile-message" aria-live="polite"></div>
+        <div id="followees-panel" class="profile-list" role="tabpanel"></div>
+        <div id="contents-panel" class="profile-list" role="tabpanel" hidden></div>
+        <button id="load-more" class="profile-load-more" hidden>加载更多</button>
+      </section>
+    </main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/profile-app.js"></script>
+  </body>
+</html>
