@@ -19,6 +19,9 @@ function renderProfile(user) {
   const node = $("#profile-avatar");
   if (avatar) node.innerHTML = `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(user.name || "知乎用户")}" referrerpolicy="no-referrer" />`;
   else node.textContent = String(user.name || "知").slice(0, 1);
+  const notice = $("#oauth-security-notice");
+  notice.textContent = user.securityNotice || "";
+  notice.hidden = !user.securityNotice;
 }
 
 function renderList(kind) {

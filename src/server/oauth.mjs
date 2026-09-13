@@ -73,6 +73,9 @@ export function createOAuthManager({
 
       const browser =
         parseCookies(req).gy_browser ?? randomBytes(24).toString("base64url");
+      for (const [key, record] of states) {
+        if (safelyEqual(record.browser, browser)) states.delete(key);
+      }
       const state = randomBytes(32).toString("base64url");
       states.set(state, { browser, expires: now + 10 * 60 * 1000 });
 
@@ -89,16 +92,31 @@ export function createOAuthManager({
 
     async callback(req, url) {
       const state = url.searchParams.get("state");
-      const record = states.get(state);
-      states.delete(state);
-      if (
-        !record ||
-        record.expires <= Date.now() ||
-        !safelyEqual(record.browser, parseCookies(req).gy_browser)
-      ) {
+      const browser = parseCookies(req).gy_browser;
+      let record;
+      let stateVerified = false;
+
+      if (state) {
+        record = states.get(state);
+        states.delete(state);
+        stateVerified = true;
+      } else {
+        for (const [key, candidate] of states) {
+          if (
+            candidate.expires > Date.now() &&
+            safelyEqual(candidate.browser, browser)
+          ) {
+            record = candidate;
+            states.delete(key);
+            break;
+          }
+        }
+      }
+
+      if (!record || record.expires <= Date.now() || !safelyEqual(record.browser, browser)) {
         throw oauthError(
           "ZHIHU_OAUTH_STATE_INVALID",
-          "OAuth state 无效、过期或已使用。",
+          "OAuth 登录请求无效、过期或已使用。",
           400,
         );
       }
@@ -175,6 +193,9 @@ export function createOAuthManager({
         name: user.fullname ?? "知乎用户",
         avatar: user.avatar_path ?? "",
         headline: user.headline ?? "",
+        securityNotice: stateVerified
+          ? ""
+          : "仅适合临时联调：知乎授权回调未返回 state。",
         expires: Date.now() + maxAge * 1000,
         accessToken,
       });
@@ -194,6 +215,7 @@ export function createOAuthManager({
             name: session.name,
             avatar: session.avatar,
             headline: session.headline,
+            securityNotice: session.securityNotice,
           }
         : null;
     },
