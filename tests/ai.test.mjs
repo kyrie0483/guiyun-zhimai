@@ -128,6 +128,10 @@ test("节点、关系与 AI 设置弹窗保持纵向清晰布局", async () => {
   assert.match(html, /例如：OAuth 回调安全/);
   assert.match(script, /<h2>AI 设置<\/h2>/);
   assert.match(script, /自带 API Key/);
+  assert.match(script, /function ensureAiConfigured\(resume\)/);
+  assert.match(script, /请输入 API Key，保存后将自动继续/);
+  assert.match(script, /if\(resume\)queueMicrotask\(resume\)/);
+  assert.match(script, /fallbackProvider=aiConfig\.providers\.some\(item=>item\.id==="openai-next"\)/);
   assert.match(styles, /\.modal \.edge-create-form>\.edge-form-body\{display:grid!important/);
   assert.match(styles, /\.ai-model-grid\{display:grid;grid-template-columns:1fr 1fr/);
 });
