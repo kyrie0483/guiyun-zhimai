@@ -117,7 +117,7 @@ export function createApplication({ root, config, zhihu, oauth, ai, userData = {
       return json(res, 200, await zhihu.quota(), id);
     }
     if (req.method === "GET" && url.pathname === "/api/ai/config") {
-      const session = oauth.session(req);
+      const session = await oauth.session(req);
       return json(res, 200, {
         providers: ai.providers(),
         prompt: ai.promptMetadata(),
@@ -129,7 +129,7 @@ export function createApplication({ root, config, zhihu, oauth, ai, userData = {
       }, id);
     }
     if (req.method === "GET" && url.pathname === "/api/ai/quota") {
-      const session = oauth.session(req);
+      const session = await oauth.session(req);
       if (!session) throw new AppError("AUTH_REQUIRED", "请先使用知乎账号登录。", 401);
       return json(res, 200, await ai.quota(session.uid), id);
     }
@@ -140,7 +140,7 @@ export function createApplication({ root, config, zhihu, oauth, ai, userData = {
       return json(res, 200, await zhihu.hackathonContent("knowledge"), id);
     }
     if (req.method === "GET" && url.pathname === "/api/zhihu/me/contents") {
-      const token = oauth.accessToken(req);
+      const token = await oauth.accessToken(req);
       if (!token) {
         throw new AppError("AUTH_REQUIRED", "请先使用知乎账号登录。", 401);
       }
@@ -152,7 +152,7 @@ export function createApplication({ root, config, zhihu, oauth, ai, userData = {
       );
     }
     if (req.method === "GET" && url.pathname === "/api/zhihu/me/followees") {
-      const token = oauth.accessToken(req);
+      const token = await oauth.accessToken(req);
       if (!token) throw new AppError("AUTH_REQUIRED", "请先使用知乎账号登录。", 401);
       return json(res, 200, await zhihu.userFollowees(token, url.searchParams.get("limit"), url.searchParams.get("offset")), id);
     }
@@ -173,7 +173,7 @@ export function createApplication({ root, config, zhihu, oauth, ai, userData = {
             sourceReferenceIds: prepared.sourceReferenceIds,
           },
         ),
-      }, oauth.session(req)), id);
+      }, await oauth.session(req)), id);
     }
     if (req.method === "POST" && url.pathname === "/api/ai/chat") {
       const input = await readJson(req);
@@ -189,24 +189,24 @@ export function createApplication({ root, config, zhihu, oauth, ai, userData = {
       } catch (error) {
         throw new AppError("AI_CHAT_INVALID", error.message || "对话请求无效。", 400);
       }
-      return json(res, 200, await ai.chat({ prepared, ai: input.ai }, oauth.session(req)), id);
+      return json(res, 200, await ai.chat({ prepared, ai: input.ai }, await oauth.session(req)), id);
     }
     if (req.method === "GET" && url.pathname === "/api/auth/session") {
-      return json(res, 200, { user: oauth.session(req) }, id);
+      return json(res, 200, { user: await oauth.session(req) }, id);
     }
     if (req.method === "GET" && url.pathname === "/api/user/state") {
-      const session = oauth.session(req);
+      const session = await oauth.session(req);
       if (!session) throw new AppError("AUTH_REQUIRED", "请先使用知乎账号登录。", 401);
       return json(res, 200, await userData.load(session.uid), id);
     }
     if (req.method === "PUT" && url.pathname === "/api/user/state") {
-      const session = oauth.session(req);
+      const session = await oauth.session(req);
       if (!session) throw new AppError("AUTH_REQUIRED", "请先使用知乎账号登录。", 401);
       const input = await readJson(req, 1_100_000);
       return json(res, 200, await userData.save(session.uid, input.state, input.expectedRevision), id);
     }
     if (req.method === "GET" && url.pathname === "/api/auth/zhihu/start") {
-      const result = oauth.begin(req);
+      const result = await oauth.begin(req);
       res.writeHead(302, {
         ...SECURITY_HEADERS,
         Location: result.url,
@@ -227,7 +227,7 @@ export function createApplication({ root, config, zhihu, oauth, ai, userData = {
     }
     if (req.method === "POST" && url.pathname === "/api/auth/logout") {
       return json(res, 200, { ok: true }, id, {
-        "Set-Cookie": oauth.logout(req),
+        "Set-Cookie": await oauth.logout(req),
       });
     }
     return false;

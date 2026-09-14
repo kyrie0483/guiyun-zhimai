@@ -1,4 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createOAuthStore } from "./oauth-store.mjs";
 
 function parseCookies(req) {
   return Object.fromEntries(
@@ -39,25 +40,21 @@ export function createOAuthManager({
   redirectUri,
   secure = false,
   fetchImpl = fetch,
+  restUrl,
+  restToken,
+  store = createOAuthStore({ restUrl, restToken, encryptionSecret: appKey }),
 } = {}) {
   const configured = Boolean(appId && appKey && redirectUri);
-  const states = new Map();
-  const sessions = new Map();
 
-  function getSession(req) {
+  async function getSession(req) {
     const id = parseCookies(req).gy_session;
-    const session = sessions.get(id);
-    if (!session || session.expires <= Date.now()) {
-      if (id) sessions.delete(id);
-      return null;
-    }
-    return session;
+    return store.getSession(id);
   }
 
   return {
     configured,
 
-    begin(req) {
+    async begin(req) {
       if (!configured) {
         throw oauthError(
           "ZHIHU_OAUTH_NOT_CONFIGURED",
@@ -66,18 +63,10 @@ export function createOAuthManager({
         );
       }
 
-      const now = Date.now();
-      for (const [key, record] of states) {
-        if (record.expires <= now) states.delete(key);
-      }
-
       const browser =
         parseCookies(req).gy_browser ?? randomBytes(24).toString("base64url");
-      for (const [key, record] of states) {
-        if (safelyEqual(record.browser, browser)) states.delete(key);
-      }
       const state = randomBytes(32).toString("base64url");
-      states.set(state, { browser, expires: now + 10 * 60 * 1000 });
+      await store.saveState(state, browser, 10 * 60);
 
       const url = new URL("https://openapi.zhihu.com/authorize");
       url.searchParams.set("redirect_uri", redirectUri);
@@ -97,23 +86,13 @@ export function createOAuthManager({
       let stateVerified = false;
 
       if (state) {
-        record = states.get(state);
-        states.delete(state);
+        record = await store.consumeState(state, browser);
         stateVerified = true;
       } else {
-        for (const [key, candidate] of states) {
-          if (
-            candidate.expires > Date.now() &&
-            safelyEqual(candidate.browser, browser)
-          ) {
-            record = candidate;
-            states.delete(key);
-            break;
-          }
-        }
+        record = await store.consumeLatestState(browser);
       }
 
-      if (!record || record.expires <= Date.now() || !safelyEqual(record.browser, browser)) {
+      if (!record || !safelyEqual(record.browser, browser)) {
         throw oauthError(
           "ZHIHU_OAUTH_STATE_INVALID",
           "OAuth 登录请求无效、过期或已使用。",
@@ -188,7 +167,7 @@ export function createOAuthManager({
       const maxAge = Number.isFinite(reportedAge)
         ? Math.max(60, Math.min(Math.floor(reportedAge), 86_400))
         : 3_600;
-      sessions.set(sessionId, {
+      await store.saveSession(sessionId, {
         uid: String(uid),
         name: user.fullname ?? "知乎用户",
         avatar: user.avatar_path ?? "",
@@ -196,9 +175,8 @@ export function createOAuthManager({
         securityNotice: stateVerified
           ? ""
           : "仅适合临时联调：知乎授权回调未返回 state。",
-        expires: Date.now() + maxAge * 1000,
         accessToken,
-      });
+      }, maxAge);
       return {
         cookies: [
           serializeCookie("gy_session", sessionId, maxAge, secure),
@@ -207,8 +185,8 @@ export function createOAuthManager({
       };
     },
 
-    session(req) {
-      const session = getSession(req);
+    async session(req) {
+      const session = await getSession(req);
       return session
         ? {
             uid: session.uid,
@@ -220,13 +198,13 @@ export function createOAuthManager({
         : null;
     },
 
-    accessToken(req) {
-      return getSession(req)?.accessToken ?? null;
+    async accessToken(req) {
+      return (await getSession(req))?.accessToken ?? null;
     },
 
-    logout(req) {
+    async logout(req) {
       const id = parseCookies(req).gy_session;
-      if (id) sessions.delete(id);
+      await store.deleteSession(id);
       return serializeCookie("gy_session", "", 0, secure);
     },
   };

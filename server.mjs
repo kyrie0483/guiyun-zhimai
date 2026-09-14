@@ -16,6 +16,8 @@ const oauth = createOAuthManager({
   appKey: config.zhihu.oauthAppKey,
   redirectUri: config.zhihu.oauthRedirectUri,
   secure: config.deployment.usesHttps,
+  restUrl: config.ai.upstashRedisRestUrl,
+  restToken: config.ai.upstashRedisRestToken,
 });
 const aiQuota = createTrialQuotaStore({
   restUrl: config.ai.upstashRedisRestUrl,
