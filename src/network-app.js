@@ -1,6 +1,7 @@
-import {createNetwork,loadState,saveState} from "./domain/store.js";
+import {createNetwork,deleteTrashedNetwork,loadState,renameNetwork,restoreNetwork,saveState,trashNetwork} from "./domain/store.js";
+import {connectUserState} from "./cloud-state.js";
 import {associationEdgePath,buildAssociationAdjacency,getAssociationNeighborIds,globalAssociationPositions,radialAssociationPositions,relationLabel} from "./domain/graph.js";
-import {safeReadingUrl} from "./domain/personal-reading.js";
+import {markdownToSafeHtml,safeReadingUrl} from "./domain/personal-reading.js";
 import {createTextFragmentUrl} from "./domain/source-anchor.js";
 import {createNetworkEdge,createNetworkNode,deleteNetworkEdge,deleteNetworkNode,updateNetworkEdge,updateNetworkNode} from "./domain/network-editor.js";
 import {auditGuiyunState} from "./domain/product-guardrails.js";
@@ -12,6 +13,7 @@ let state=loadState(),selected=new Set(),focused=null;
 const networkViews=new Map();
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+const publicNetworkSummary=value=>String(value??"").replace(/[（(]?\s*[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\s*[）)]?/giu,"").replace(/[ \t]+([，。；：、])/gu,"$1").replace(/[ \t]{2,}/gu," ").trim();
 const workspaceLayout=$(".network-page-layout"),WORKSPACE_LAYOUT_KEY="guiyun-zhimai:network-layout:v1";
 let workspaceLayoutState=readWorkspaceLayout();
 function readWorkspaceLayout(){try{const value=JSON.parse(localStorage.getItem(WORKSPACE_LAYOUT_KEY)||"{}");return{leftCollapsed:Boolean(value.leftCollapsed),rightCollapsed:Boolean(value.rightCollapsed)}}catch{return{leftCollapsed:false,rightCollapsed:false}}}
@@ -44,6 +46,7 @@ $("#toast").setAttribute("role","status");$("#toast").setAttribute("aria-live","
 for(const dialog of document.querySelectorAll(".modal")){dialog.setAttribute("role","dialog");dialog.setAttribute("aria-modal","true")}
 document.addEventListener("keydown",event=>{
   if(event.key!=="Escape")return;
+  if(!$("#ai-chat-panel").hidden){closeAiChat();$("#ai-chat-toggle").focus();event.preventDefault();return}
   if(!$("#network-edit-menu").hidden){setEditMenu(false);$("#network-edit-toggle").focus();event.preventDefault();return}
   if(workspaceLayout.classList.contains("left-open")||workspaceLayout.classList.contains("right-open")){closeWorkspaceDrawers();event.preventDefault();return}
   const currentView=networkViews.get(network()?.id);
@@ -67,6 +70,8 @@ function aiSourceLabel(ai,demo){return demo?"演示 AI":ai?.mode==="trial"?`站�
 function persist(){network().updatedAt=new Date().toISOString();saveState(state);renderNetworkSelector();renderNetwork()}
 
 async function init(){
+  migrateLegacyChatStore();
+  const synced=await connectUserState(state,{onState(next){state=next;renderNetworkSelector();renderNetwork()},onStatus(status){document.body.dataset.syncStatus=status}});state=synced.state;
   const parameters=new URLSearchParams(location.search),requestedNetwork=parameters.get("network"),requestedNode=parameters.get("node");if(requestedNetwork&&state.networks.some(item=>item.id===requestedNetwork))state.activeNetworkId=requestedNetwork;
   renderNetworkSelector();
   try{aiConfig=await request("/api/ai/config")}catch{}
@@ -81,10 +86,45 @@ document.querySelectorAll('input[name="ai-mode"]').forEach(input=>input.onchange
 $("#ai-provider").onchange=()=>{const profile=readAiSettings();renderAiModels(profile.provider===$("#ai-provider").value?profile.model:"");$("#ai-api-key").value=readJsonStorage(sessionStorage,AI_SECRETS_KEY).apiKeys?.[$("#ai-provider").value]||""};
 $("#ai-settings-form").onsubmit=event=>{event.preventDefault();const mode=document.querySelector('input[name="ai-mode"]:checked')?.value||"trial",settings={mode,provider:$("#ai-provider").value,model:$("#ai-model").value,apiKey:$("#ai-api-key").value};if(mode==="own"&&!settings.apiKey.trim())return toast("请输入当前供应商的 API Key");if(mode==="trial"&&(!aiConfig.trial.available||aiConfig.trial.loginRequired))return toast(aiConfig.trial.loginRequired?"请先登录知乎，或使用自己的 API Key":"站点试用暂未开放，请使用自己的 API Key");saveAiSettings(settings);$("#ai-settings-dialog").hidden=true;const resume=pendingAiAction;pendingAiAction=null;toast(mode==="own"?"已保存当前标签页的 AI 设置":"已切换到站点试用");if(resume)queueMicrotask(resume)};
 
+const AI_CHAT_KEY="guiyun-zhimai:ai-chat:v1";
+function migrateLegacyChatStore(){const legacy=readJsonStorage(localStorage,AI_CHAT_KEY);if(!state.chats||typeof state.chats!=="object")state.chats={};if(!Object.keys(state.chats).length&&Object.keys(legacy).length)state.chats=legacy}
+function chatSessions(){state.chats??={};const id=network().id;if(!Array.isArray(state.chats[id])||!state.chats[id].length)state.chats[id]=[{id:crypto.randomUUID(),title:"新对话",messages:[],updatedAt:new Date().toISOString()}];return state.chats[id]}
+function activeChat(){const sessions=chatSessions(),id=$("#ai-chat-conversation").value;return sessions.find(item=>item.id===id)??sessions[0]}
+function saveChatStore(){for(const id of Object.keys(state.chats??{})){if(Array.isArray(state.chats[id]))state.chats[id]=state.chats[id].slice(0,20)}saveState(state)}
+function renderChat(){
+  const sessions=chatSessions(),select=$("#ai-chat-conversation"),preferred=select.value;
+  select.innerHTML=sessions.map(item=>"<option value=\""+esc(item.id)+"\">"+esc(item.title||"新对话")+"</option>").join("");
+  select.value=sessions.some(item=>item.id===preferred)?preferred:sessions[0].id;
+  const messages=activeChat().messages??[],root=$("#ai-chat-messages");
+  root.innerHTML=messages.length?messages.map(item=>"<article class=\"ai-chat-message "+item.role+"\"><span>"+(item.role==="user"?"你":"归云助手")+"</span><div class=\"ai-chat-markdown\">"+markdownToSafeHtml(item.content)+"</div>"+(item.citations?.length?"<div class=\"ai-chat-citations\">"+item.citations.map(source=>"<button type=\"button\" data-chat-node=\""+esc(source.nodeId)+"\">["+esc(source.id)+"] "+esc(source.title)+"</button>").join("")+"</div>":"")+"</article>").join(""):"<div class=\"ai-chat-empty\"><img src=\"/assets/guiyun-mark.svg\" alt=\"\"><b>和你的知识网络聊一聊</b><p>可提问、检索或翻译；回答不会直接改动节点和关系。</p></div>";
+  root.querySelectorAll("[data-chat-node]").forEach(button=>button.onclick=()=>{const node=network().nodes.find(item=>item.id===button.dataset.chatNode),view=networkViews.get(network().id);if(!node)return toast("该来源节点已不存在");focused={kind:"node",id:node.id};if(view)centerOnNode(view,node.id);showNode(node);renderNetwork();if(compactWorkspace())closeAiChat();toast("已定位到「"+node.title+"」")});
+  root.scrollTop=root.scrollHeight;
+}
+function openAiChat(){closeWorkspaceDrawers();$("#ai-chat-panel").hidden=false;$("#ai-chat-scrim").hidden=false;$("#ai-chat-panel").setAttribute("aria-hidden","false");$("#ai-chat-toggle").setAttribute("aria-expanded","true");$("#ai-chat-mobile").setAttribute("aria-expanded","true");renderChat();setTimeout(()=>$("#ai-chat-input").focus(),0)}
+function closeAiChat(){$("#ai-chat-panel").hidden=true;$("#ai-chat-scrim").hidden=true;$("#ai-chat-panel").setAttribute("aria-hidden","true");$("#ai-chat-toggle").setAttribute("aria-expanded","false");$("#ai-chat-mobile").setAttribute("aria-expanded","false")}
+$("#ai-chat-toggle").onclick=()=>$("#ai-chat-panel").hidden?openAiChat():closeAiChat();
+$("#ai-chat-mobile").onclick=()=>$("#ai-chat-panel").hidden?openAiChat():closeAiChat();
+$("#ai-chat-close").onclick=closeAiChat;$("#ai-chat-scrim").onclick=closeAiChat;
+$("#ai-chat-new").onclick=()=>{const session={id:crypto.randomUUID(),title:"新对话",messages:[],updatedAt:new Date().toISOString()};chatSessions().unshift(session);saveChatStore();renderChat();$("#ai-chat-conversation").value=session.id;renderChat();$("#ai-chat-input").focus()};
+$("#ai-chat-conversation").onchange=renderChat;
+$("#ai-chat-input").onkeydown=event=>{if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing){event.preventDefault();$("#ai-chat-form").requestSubmit()}};
+$("#ai-chat-form").onsubmit=async event=>{
+  event.preventDefault();const input=$("#ai-chat-input"),message=input.value.trim();if(!message)return;
+  const session=activeChat(),n=network(),button=$("#ai-chat-send"),intent=$("#ai-chat-intent").value,history=session.messages.slice(-12).map(item=>({role:item.role,content:item.content}));
+  session.messages.push({role:"user",content:message});if(session.title==="新对话")session.title=Array.from(message).slice(0,18).join("");session.updatedAt=new Date().toISOString();input.value="";saveChatStore();renderChat();button.disabled=true;button.textContent="思考中";$("#ai-chat-status").textContent="正在结合当前上下文…";
+  try{
+    const nodes=n.nodes.map(node=>({id:node.id,title:node.title,note:node.note,excerpt:node.anchor?.selectedText||node.source?.excerpt||""}));
+    const data=await request("/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({intent,message,history,nodes,existingEdges:n.edges,ai:aiSelection()})});
+    session.messages.push({role:"assistant",content:data.message,citations:data.citations??[],ai:data.ai});session.updatedAt=new Date().toISOString();if(data.ai?.quota)aiConfig.trial={...aiConfig.trial,...data.ai.quota};saveChatStore();renderChat();$("#ai-chat-status").textContent=(data.ai?.provider||"AI")+" · 回答不会直接修改网络";
+  }catch(error){session.messages.push({role:"assistant",content:"请求失败："+error.message,error:true});saveChatStore();renderChat();$("#ai-chat-status").textContent="发送失败，请检查 AI 设置"}finally{button.disabled=false;button.textContent="发送"}
+};
+
 function renderNetworkSelector(){
   const select=$("#network-select");
   select.innerHTML=state.networks.map(n=>`<option value="${esc(n.id)}">${esc(n.name)}</option>`).join("");
   select.value=network().id;
+  $("#trash-network").disabled=state.networks.length<=1;$("#network-trash-count").textContent=String(state.trash?.length??0);
+  if($("#ai-chat-panel")&&!$("#ai-chat-panel").hidden)renderChat();
 }
 $("#network-select").onchange=e=>{
   if(!state.networks.some(n=>n.id===e.target.value))return;
@@ -97,11 +137,17 @@ $("#network-form").onsubmit=e=>{
   if(state.networks.some(n=>n.name.toLocaleLowerCase()===name.toLocaleLowerCase()))return toast("已经存在同名知识网络");
   const item=createNetwork({name});state.networks.push(item);state.activeNetworkId=item.id;selected.clear();$("#network-dialog").hidden=true;persist();toast(`已创建「${item.name}」`);
 };
+function renderNetworkTrash(){const list=state.trash??[];$("#network-trash-list").innerHTML=list.length?list.map(item=>`<article><div><b>${esc(item.name)}</b><small>${item.nodes?.length??0} 节点 · ${item.edges?.length??0} 关系</small></div><button data-restore-network="${esc(item.id)}">恢复</button><button class="danger" data-delete-network="${esc(item.id)}">永久删除</button></article>`).join(""):'<p class="empty">回收站为空</p>';$("#network-trash-list").querySelectorAll("[data-restore-network]").forEach(button=>button.onclick=()=>{try{const item=restoreNetwork(state,button.dataset.restoreNetwork);persist();renderNetworkTrash();toast(`已恢复「${item.name}」`)}catch(error){toast(error.message)}});$("#network-trash-list").querySelectorAll("[data-delete-network]").forEach(button=>button.onclick=()=>{const item=(state.trash??[]).find(value=>value.id===button.dataset.deleteNetwork);if(!item||!confirm(`确定永久删除「${item.name}」吗？此操作无法恢复。`))return;deleteTrashedNetwork(state,item.id);saveState(state);renderNetworkSelector();renderNetworkTrash();toast("已永久删除网络")})}
+$("#rename-network").onclick=()=>{$("#rename-network-name").value=network().name;$("#rename-network-dialog").hidden=false;$("#rename-network-name").focus();$("#rename-network-name").select()};
+$("#rename-network-cancel").onclick=()=>$("#rename-network-dialog").hidden=true;
+$("#rename-network-form").onsubmit=event=>{event.preventDefault();try{const item=renameNetwork(state,network().id,$("#rename-network-name").value);$("#rename-network-dialog").hidden=true;persist();toast(`已重命名为「${item.name}」`)}catch(error){toast(error.message)}};
+$("#trash-network").onclick=()=>{const item=network();if(state.networks.length<=1)return toast("至少需要保留一个知识网络");if(!confirm(`确定将「${item.name}」移入回收站吗？之后可以恢复。`))return;trashNetwork(state,item.id);selected.clear();focused=null;persist();$("#node-detail").innerHTML="<p>选择节点或关系查看详情。</p>";toast("网络已移入回收站")};
+$("#open-network-trash").onclick=()=>{renderNetworkTrash();$("#network-trash-dialog").hidden=false};$("#network-trash-close").onclick=()=>$("#network-trash-dialog").hidden=true;
 
 const aiDraft={networkId:"",action:"connect",nodeIds:new Set(),edgeId:"",search:""};
 function aiTargetNetwork(){return state.networks.find(item=>item.id===aiDraft.networkId)??network()}
 function openAiWorkbench(action="connect"){
-  aiDraft.networkId=network().id;aiDraft.action=action;aiDraft.nodeIds=new Set(selected);aiDraft.edgeId="";aiDraft.search="";
+  aiDraft.networkId=network().id;aiDraft.action=action;aiDraft.nodeIds=new Set(selected);aiDraft.edgeId=action==="summarize-edge"&&focused?.kind==="edge"?focused.id:"";aiDraft.search="";
   $("#ai-network-target").innerHTML=state.networks.map(item=>`<option value="${esc(item.id)}">${esc(item.name)} · ${item.nodes.length} 节点</option>`).join("");$("#ai-network-target").value=aiDraft.networkId;$("#ai-action").value=action;$("#ai-node-search").value="";renderAiWorkbench();$("#ai-dialog").hidden=false;
 }
 function renderAiWorkbench(){
@@ -121,9 +167,9 @@ $("#ai-submit").onclick=async()=>{
   if(task==="connect"&&ids.length<2)return toast("请至少选择两个参与连边的节点");if(task==="summarize-node"&&!ids.length)return toast("请至少选择一个待总结节点");if(task==="summarize-node"){writeNodeId=$("#ai-write-target").value;if(!writeNodeId)return toast("请选择总结写入节点")}if(task==="summarize-edge"){edgeId=$("#ai-edge-target").value;const edge=n.edges.find(item=>item.id===edgeId);if(!edge)return toast("请选择要总结的关系");ids=[edge.sourceNodeId,edge.targetNodeId]}if(!ids.length)return toast("目标网络没有可处理节点");if(ids.length>120)return toast("单次最多处理 120 个节点，请缩小范围");
   if(!ensureAiConfigured(()=>$("#ai-submit").click()))return;
   const nodes=ids.map(id=>n.nodes.find(node=>node.id===id)).filter(Boolean).map(node=>({id:node.id,title:node.title,note:node.note,excerpt:node.anchor?.selectedText||node.source.excerpt})),button=$("#ai-submit");button.disabled=true;button.textContent="AI 生成中…";
-  try{const data=await request("/api/zhihu/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task,nodes,existingEdges:n.edges,edgeId,ai:aiSelection()})}),batchId=crypto.randomUUID();if(task==="connect"){for(const edge of data.result.edges??[])n.proposals.push({id:crypto.randomUUID(),batchId,kind:"edge",status:"pending",payload:edge,demo:data.demo,ai:data.ai})}else n.proposals.push({id:crypto.randomUUID(),batchId,kind:task,status:"pending",nodeId:writeNodeId||null,edgeId:edgeId||null,targetNodeIds:ids,payload:data.result,demo:data.demo,ai:data.ai});if(data.ai?.quota)aiConfig.trial={...aiConfig.trial,...data.ai.quota};state.activeNetworkId=n.id;selected.clear();saveState(state);renderNetworkSelector();renderNetwork();$("#ai-dialog").hidden=true;toast(`已由 ${data.ai?.provider||"AI"} 生成待确认草案`)}catch(error){toast(error.message)}finally{button.disabled=false;button.textContent="生成待确认草案"}
+  try{const data=await request("/api/zhihu/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task,nodes,existingEdges:n.edges,edgeId,targetNodeId:writeNodeId,ai:aiSelection()})}),batchId=crypto.randomUUID();if(task==="connect"){for(const edge of data.result.edges??[])n.proposals.push({id:crypto.randomUUID(),batchId,kind:"edge",status:"pending",payload:edge,demo:data.demo,ai:data.ai})}else n.proposals.push({id:crypto.randomUUID(),batchId,kind:task,status:"pending",nodeId:writeNodeId||null,edgeId:edgeId||null,targetNodeIds:ids,payload:data.result,demo:data.demo,ai:data.ai});if(data.ai?.quota)aiConfig.trial={...aiConfig.trial,...data.ai.quota};state.activeNetworkId=n.id;selected.clear();saveState(state);renderNetworkSelector();renderNetwork();$("#ai-dialog").hidden=true;toast(`已由 ${data.ai?.provider||"AI"} 生成待确认草案`)}catch(error){toast(error.message)}finally{button.disabled=false;button.textContent="生成待确认草案"}
 };
-$("#ai-connect").onclick=()=>openAiWorkbench("connect");$("#ai-node").onclick=()=>openAiWorkbench("summarize-node");$("#ai-network").onclick=()=>openAiWorkbench("summarize-network");
+$("#ai-connect").onclick=()=>openAiWorkbench("connect");$("#ai-node").onclick=()=>openAiWorkbench("summarize-node");$("#ai-edge").onclick=()=>openAiWorkbench("summarize-edge");$("#ai-network").onclick=()=>openAiWorkbench("summarize-network");
 
 function openNodeCreator(){$("#node-title").value="";$("#node-note").value="";$("#node-error").hidden=true;$("#node-dialog").hidden=false;$("#node-title").focus()}
 $("#create-node").onclick=openNodeCreator;$("#node-close").onclick=$("#node-cancel").onclick=()=>$("#node-dialog").hidden=true;
@@ -177,7 +223,7 @@ $("#integrate-new").onclick=async()=>{
 };
 
 function renderNetwork(){
-  const n=network(),newCount=newIntegrationNodes(n).length,canCreateEdge=hasAvailableEdgePair(n),summary=String(n.summary||"").trim();$("#active-network-name").textContent=n.name;$("#node-count").textContent=n.nodes.length;$("#edge-count").textContent=n.edges.length;$("#new-node-count").textContent=newCount;$("#integrate-new").disabled=newCount===0;$("#integrate-new").title=newCount?`${newCount} 个新增节点等待整合`:"没有待整合的新增节点";$("#create-edge").disabled=!canCreateEdge;$("#create-edge").title=canCreateEdge?"选择起点和目标节点，手动建立关系":n.nodes.length<2?"至少需要两个节点":"所有节点组合都已有关系";$("#summary").textContent=summary;$("#summary").title=summary;$("#summary").hidden=!summary;
+  const n=network(),newCount=newIntegrationNodes(n).length,canCreateEdge=hasAvailableEdgePair(n),summary=publicNetworkSummary(n.summary);$("#active-network-name").textContent=n.name;$("#node-count").textContent=n.nodes.length;$("#edge-count").textContent=n.edges.length;$("#new-node-count").textContent=newCount;$("#integrate-new").disabled=newCount===0;$("#integrate-new").title=newCount?`${newCount} 个新增节点等待整合`:"没有待整合的新增节点";$("#create-edge").disabled=!canCreateEdge;$("#create-edge").title=canCreateEdge?"选择起点和目标节点，手动建立关系":n.nodes.length<2?"至少需要两个节点":"所有节点组合都已有关系";$("#ai-edge").disabled=!n.edges.length;$("#summary").innerHTML=summary?markdownToSafeHtml(summary):"";$("#summary").hidden=!summary;
   const g=$("#graph"),w=g.clientWidth||430,h=g.clientHeight||430;
   let view=networkViews.get(n.id);
   if(!view||!n.nodes.some(node=>node.id===view.centerId)){view={centerId:n.nodes[0]?.id??"",history:n.nodes[0]?[n.nodes[0].id]:[],historyIndex:n.nodes[0]?0:-1,selectionMode:false,viewMode:"network",scale:1,panX:0,panY:0,overviewExpanded:false};networkViews.set(n.id,view)}
@@ -263,13 +309,13 @@ function showNode(n){
   const readerUrl=`/?network=${encodeURIComponent(network().id)}&node=${encodeURIComponent(n.id)}`;
   const view=networkViews.get(network().id),isCenter=view?.centerId===n.id;
   const manual=n.source.sourceType==="manual",readingLink=manual?"":`<a class="button" id="jump-local" href="${readerUrl}">返回阅读位置</a>`;
-  $("#node-detail").innerHTML=`<div class="detail-heading"><span class="badge">${manual?"手动":n.type==="article"?"整篇":"文段"}</span><span class="object-kind">${n.integrationStatus==="new"?"待整合 · ":""}节点</span></div><h3>${esc(n.title)}</h3>${n.anchor?`<blockquote>${esc(n.anchor.selectedText)}</blockquote>`:""}${n.note?`<p>${esc(n.note)}</p>`:""}<small>${esc(n.source.author)} · ${esc(n.source.title)}</small>${readingLink||sourceLink?`<div>${readingLink}${sourceLink}</div>`:""}<div class="object-actions"><button id="center-object" ${isCenter?"disabled":""}>${isCenter?"当前中心":"设为中心"}</button><button id="edit-object">编辑节点</button><button id="delete-object" class="danger">删除节点</button></div>`;
+  $("#node-detail").innerHTML=`<div class="detail-heading"><span class="badge">${manual?"手动":n.type==="article"?"整篇":"文段"}</span><span class="object-kind">${n.integrationStatus==="new"?"待整合 · ":""}节点</span></div><h3>${esc(n.title)}</h3>${n.anchor?`<blockquote>${esc(n.anchor.selectedText)}</blockquote>`:""}${n.note?`<div class="object-markdown">${markdownToSafeHtml(n.note)}</div>`:""}<small>${esc(n.source.author)} · ${esc(n.source.title)}</small>${readingLink||sourceLink?`<div>${readingLink}${sourceLink}</div>`:""}<div class="object-actions"><button id="center-object" ${isCenter?"disabled":""}>${isCenter?"当前中心":"设为中心"}</button><button id="edit-object">编辑节点</button><button id="delete-object" class="danger">删除节点</button></div>`;
   $("#center-object").onclick=()=>{if(!view||isCenter)return;focused={kind:"node",id:n.id};centerOnNode(view,n.id);renderNetwork();showNode(n)};$("#edit-object").onclick=()=>openObjectEditor("node",n);$("#delete-object").onclick=()=>removeObject("node",n.id);
 }
 function showEdge(edge){
   const n=network(),source=n.nodes.find(node=>node.id===edge.sourceNodeId),target=n.nodes.find(node=>node.id===edge.targetNodeId);
-  $("#node-detail").innerHTML=`<div class="detail-heading"><span class="badge">${esc(relationLabel(edge.relationType))}</span><span class="object-kind">关系</span></div><h3>${esc(edge.title||"未命名关系")}</h3><p class="edge-endpoints"><b>${esc(source?.title||"未知节点")}</b><span>↔</span><b>${esc(target?.title||"未知节点")}</b></p>${edge.rationale?`<p>${esc(edge.rationale)}</p>`:""}<div class="object-actions"><button id="edit-object">编辑关系</button><button id="delete-object" class="danger">删除关系</button></div>`;
-  $("#edit-object").onclick=()=>openObjectEditor("edge",edge);$("#delete-object").onclick=()=>removeObject("edge",edge.id);
+  $("#node-detail").innerHTML=`<div class="detail-heading"><span class="badge">${esc(relationLabel(edge.relationType))}</span><span class="object-kind">关系</span></div><h3>${esc(edge.title||"未命名关系")}</h3><p class="edge-endpoints"><b>${esc(source?.title||"未知节点")}</b><span>↔</span><b>${esc(target?.title||"未知节点")}</b></p>${edge.rationale?`<div class="object-markdown">${markdownToSafeHtml(edge.rationale)}</div>`:""}<div class="object-actions"><button id="summarize-object">AI 总结关系</button><button id="edit-object">编辑关系</button><button id="delete-object" class="danger">删除关系</button></div>`;
+  $("#summarize-object").onclick=()=>openAiWorkbench("summarize-edge");$("#edit-object").onclick=()=>openObjectEditor("edge",edge);$("#delete-object").onclick=()=>removeObject("edge",edge.id);
 }
 function openObjectEditor(kind,item){
   $("#object-kind").value=kind;$("#object-id").value=item.id;$("#object-title").value=item.title||"";$("#object-note").value=kind==="node"?item.note||"":item.rationale||"";$("#object-relation").value=item.relationType||"related";$("#relation-type-row").hidden=kind!=="edge";$("#object-dialog-title").textContent=kind==="node"?"编辑节点":"编辑关系";$("#object-dialog").hidden=false;$("#object-title").focus();
@@ -294,7 +340,7 @@ function removeObject(kind,id){
 }
 function renderProposals(){
   const list=network().proposals.filter(p=>p.status==="pending");
-  $("#proposals").innerHTML=list.length?list.map(p=>`<article class="proposal"><span>${esc(aiSourceLabel(p.ai,p.demo))} · 待确认</span><h4>${p.kind==="edge"?esc(p.payload.title):p.kind==="summarize-node"?"节点总结":p.kind==="summarize-edge"?"关系总结":"网络总结"}</h4><p>${esc(p.kind==="edge"?p.payload.rationale:p.payload.note)}</p><button class="primary" data-apply="${p.id}">确认写入</button><button data-reject="${p.id}">拒绝</button></article>`).join(""):'<p class="empty">暂无待确认草案</p>';
+  $("#proposals").innerHTML=list.length?list.map(p=>{const markdown=p.kind==="edge"?p.payload.rationale:p.kind==="summarize-network"?publicNetworkSummary(p.payload.note):p.payload.note;return`<article class="proposal"><span>${esc(aiSourceLabel(p.ai,p.demo))} · 待确认</span><h4>${p.kind==="edge"?esc(p.payload.title):p.kind==="summarize-node"?"节点总结":p.kind==="summarize-edge"?"关系总结":"网络总结"}</h4><div class="proposal-markdown">${markdownToSafeHtml(markdown)}</div><button class="primary" data-apply="${p.id}">确认写入</button><button data-reject="${p.id}">拒绝</button></article>`}).join(""):'<p class="empty">暂无待确认草案</p>';
   $("#proposals").querySelectorAll("[data-apply]").forEach(b=>b.onclick=()=>resolveProposal(b.dataset.apply,true));$("#proposals").querySelectorAll("[data-reject]").forEach(b=>b.onclick=()=>resolveProposal(b.dataset.reject,false));
 }
 function resolveProposal(id,apply){

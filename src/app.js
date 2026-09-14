@@ -3,6 +3,7 @@ import {
   resolveTextSourceAnchor,
 } from "./domain/source-anchor.js";
 import { loadState, saveState } from "./domain/store.js";
+import { connectUserState } from "./cloud-state.js";
 import {
   markdownToSafeHtml,
   safeReadingUrl,
@@ -19,6 +20,10 @@ let current = null;
 let pending = null;
 let pendingSelectionRange = null;
 let latestSearchRequest = 0;
+let readingAiConfig = { providers: [], trial: { available: false, loginRequired: true } };
+const AI_PREFERENCES_KEY = "guiyun-zhimai:ai-preferences:v1";
+const AI_SECRETS_KEY = "guiyun-zhimai:ai-session-secrets:v1";
+const READING_CHAT_PREFIX = "reading:";
 const HIGHLIGHT_COLORS = {
   yellow: "#FFFF55",
   red: "#EA3323",
@@ -43,6 +48,32 @@ const safeAvatarUrl = (value) => {
     return "";
   }
 };
+
+function readJsonStorage(storage, key) {
+  try {
+    return JSON.parse(storage.getItem(key) || "{}") ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function readingAiSelection() {
+  const preferences = readJsonStorage(localStorage, AI_PREFERENCES_KEY);
+  const secrets = readJsonStorage(sessionStorage, AI_SECRETS_KEY);
+  if (preferences.mode !== "own") return { mode: "trial" };
+  const provider = String(preferences.provider || readingAiConfig.providers[0]?.id || "deepseek");
+  const definition = readingAiConfig.providers.find((item) => item.id === provider);
+  const preferredModel = preferences.models?.[provider];
+  const model = definition?.models.includes(preferredModel)
+    ? preferredModel
+    : preferredModel || definition?.models[0] || "";
+  return {
+    mode: "own",
+    provider,
+    model,
+    apiKey: String(secrets.apiKeys?.[provider] || ""),
+  };
+}
 
 function renderAccountLink(user) {
   const avatar = safeAvatarUrl(user.avatar);
@@ -206,8 +237,112 @@ function openItem(item) {
   const safeUrl = safeReadingUrl(item.url);
   $("#open-original").hidden = !safeUrl;
   $("#open-original").href = safeUrl || "#";
+  updateReadingAiContext();
+  if (!$("#reading-ai-chat-panel").hidden) renderReadingChat();
   activateMobilePanel("reader");
   $("#reader-view").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function readingChatKey(item = current) {
+  return `${READING_CHAT_PREFIX}${String(item?.id || "general")}`;
+}
+
+function readingChatSessions() {
+  state.chats ??= {};
+  const key = readingChatKey();
+  if (!Array.isArray(state.chats[key]) || !state.chats[key].length) {
+    state.chats[key] = [{
+      id: crypto.randomUUID(),
+      title: "新对话",
+      messages: [],
+      updatedAt: new Date().toISOString(),
+    }];
+  }
+  return state.chats[key];
+}
+
+function activeReadingChat() {
+  const sessions = readingChatSessions();
+  const id = $("#reading-ai-chat-conversation").value;
+  return sessions.find((item) => item.id === id) ?? sessions[0];
+}
+
+function saveReadingChats() {
+  for (const key of Object.keys(state.chats ?? {})) {
+    if (Array.isArray(state.chats[key])) state.chats[key] = state.chats[key].slice(0, 20);
+  }
+  saveState(state);
+}
+
+function updateReadingAiContext() {
+  const label = $("#reading-ai-source-label");
+  if (label) label.textContent = current ? `当前阅读 · ${current.title}` : "当前阅读";
+}
+
+function findReadingSource(sourceId) {
+  return state.sources.find((source) => String(source.id) === String(sourceId)) ??
+    (String(current?.id) === String(sourceId) ? current : null);
+}
+
+function renderReadingChat() {
+  const sessions = readingChatSessions();
+  const select = $("#reading-ai-chat-conversation");
+  const preferred = select.value;
+  select.innerHTML = sessions
+    .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.title || "新对话")}</option>`)
+    .join("");
+  select.value = sessions.some((item) => item.id === preferred) ? preferred : sessions[0].id;
+  const messages = activeReadingChat().messages ?? [];
+  const root = $("#reading-ai-chat-messages");
+  root.innerHTML = messages.length
+    ? messages.map((item) => `<article class="ai-chat-message ${item.role}"><span>${item.role === "user" ? "你" : "归云助手"}</span><div class="ai-chat-markdown">${markdownToSafeHtml(item.content)}</div>${item.citations?.length ? `<div class="ai-chat-citations">${item.citations.map((source) => `<button type="button" data-chat-source="${escapeHtml(source.nodeId)}">[${escapeHtml(source.id)}] ${escapeHtml(source.title)}</button>`).join("")}</div>` : ""}</article>`).join("")
+    : `<div class="ai-chat-empty"><img src="/assets/guiyun-mark.svg" alt=""><b>${current ? "和当前原文聊一聊" : "先打开一篇阅读内容"}</b><p>${current ? "可直接问答、检索阅读资料或翻译；回答不会修改原文。" : "打开左侧内容后，归云助手会围绕原文回答。"}</p></div>`;
+  root.querySelectorAll("[data-chat-source]").forEach((button) => {
+    button.onclick = () => {
+      const source = findReadingSource(button.dataset.chatSource);
+      if (!source) return toast("该阅读来源已不存在");
+      openItem(source);
+      if (innerWidth <= 1050) closeReadingAiChat();
+      toast(`已打开「${source.title}」`);
+    };
+  });
+  root.scrollTop = root.scrollHeight;
+  updateReadingAiContext();
+}
+
+function openReadingAiChat() {
+  $("#reading-ai-chat-panel").hidden = false;
+  $("#reading-ai-chat-scrim").hidden = false;
+  $("#reading-ai-chat-panel").setAttribute("aria-hidden", "false");
+  $("#reading-ai-chat-toggle").setAttribute("aria-expanded", "true");
+  $("#reading-ai-chat-mobile").setAttribute("aria-expanded", "true");
+  renderReadingChat();
+  setTimeout(() => $("#reading-ai-chat-input").focus(), 0);
+}
+
+function closeReadingAiChat() {
+  $("#reading-ai-chat-panel").hidden = true;
+  $("#reading-ai-chat-scrim").hidden = true;
+  $("#reading-ai-chat-panel").setAttribute("aria-hidden", "true");
+  $("#reading-ai-chat-toggle").setAttribute("aria-expanded", "false");
+  $("#reading-ai-chat-mobile").setAttribute("aria-expanded", "false");
+}
+
+function readingSourcesForIntent(intent) {
+  if (intent === "note_answer") return current ? [current] : [];
+  if (intent !== "note_search") return [];
+  const sources = current && !state.sources.some((item) => item.id === current.id)
+    ? [current, ...state.sources]
+    : state.sources;
+  return sources.slice(0, 24);
+}
+
+function toReadingAiSource(source) {
+  return {
+    id: String(source.id || source.url || source.title),
+    title: String(source.title || "未命名阅读资料"),
+    content: String(source.content || source.excerpt || ""),
+  };
 }
 
 async function search(query, hot = false) {
@@ -394,6 +529,17 @@ function openRequestedNode() {
 async function init() {
   $("#toast").setAttribute("role", "status");
   $("#toast").setAttribute("aria-live", "polite");
+  const synced = await connectUserState(state, {
+    onState(next) {
+      state = next;
+      renderPersonalSources();
+      updateNetworkEntry();
+      if (current) renderArticleContent(current);
+      if (!$("#reading-ai-chat-panel").hidden) renderReadingChat();
+    },
+    onStatus(status) { document.body.dataset.syncStatus = status; },
+  });
+  state = synced.state;
   $(".workspace").dataset.mobilePanel = "sources";
   document.querySelectorAll(".mobile-tabs [data-panel]").forEach((button) => {
     button.onclick = () => {
@@ -405,6 +551,9 @@ async function init() {
   });
   renderPersonalSources();
   updateNetworkEntry();
+  try {
+    readingAiConfig = await request("/api/ai/config");
+  } catch {}
   try {
     const health = await request("/api/health");
     $("#api-state").textContent = health.zhihuConfigured ? "知乎接口已连接" : "演示模式";
@@ -429,6 +578,90 @@ async function init() {
     $("#results").innerHTML = "";
   }
 }
+
+$("#reading-ai-chat-toggle").onclick = () =>
+  $("#reading-ai-chat-panel").hidden ? openReadingAiChat() : closeReadingAiChat();
+$("#reading-ai-chat-mobile").onclick = () =>
+  $("#reading-ai-chat-panel").hidden ? openReadingAiChat() : closeReadingAiChat();
+$("#reading-ai-chat-close").onclick = closeReadingAiChat;
+$("#reading-ai-chat-scrim").onclick = closeReadingAiChat;
+$("#reading-ai-chat-new").onclick = () => {
+  const session = {
+    id: crypto.randomUUID(),
+    title: "新对话",
+    messages: [],
+    updatedAt: new Date().toISOString(),
+  };
+  readingChatSessions().unshift(session);
+  saveReadingChats();
+  renderReadingChat();
+  $("#reading-ai-chat-conversation").value = session.id;
+  renderReadingChat();
+  $("#reading-ai-chat-input").focus();
+};
+$("#reading-ai-chat-conversation").onchange = renderReadingChat;
+$("#reading-ai-chat-intent").onchange = () => {
+  const intent = $("#reading-ai-chat-intent").value;
+  $("#reading-ai-chat-input").placeholder = intent === "note_search"
+    ? "检索已加入的阅读资料，Enter 发送"
+    : intent === "translate"
+      ? "粘贴或输入要翻译的内容"
+      : "围绕当前原文提问，Enter 发送，Shift+Enter 换行";
+};
+$("#reading-ai-chat-input").onkeydown = (event) => {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    $("#reading-ai-chat-form").requestSubmit();
+  }
+};
+$("#reading-ai-chat-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const input = $("#reading-ai-chat-input");
+  const message = input.value.trim();
+  if (!message) return;
+  const intent = $("#reading-ai-chat-intent").value;
+  if ((intent === "note_answer" || intent === "note_search") && !readingSourcesForIntent(intent).length) {
+    return toast(intent === "note_answer" ? "请先打开一篇阅读内容" : "请先加入至少一篇阅读资料");
+  }
+  const selection = readingAiSelection();
+  if (selection.mode === "own" && (!selection.apiKey || !selection.model)) {
+    return toast("请先在网络页左下角完成 AI 设置");
+  }
+  const session = activeReadingChat();
+  const button = $("#reading-ai-chat-send");
+  const history = session.messages.slice(-12).map((item) => ({ role: item.role, content: item.content }));
+  session.messages.push({ role: "user", content: message });
+  if (session.title === "新对话") session.title = Array.from(message).slice(0, 18).join("");
+  session.updatedAt = new Date().toISOString();
+  input.value = "";
+  saveReadingChats();
+  renderReadingChat();
+  button.disabled = true;
+  button.textContent = "思考中";
+  $("#reading-ai-chat-status").textContent = intent === "note_search" ? "正在检索阅读资料…" : "正在阅读当前内容…";
+  try {
+    const nodes = readingSourcesForIntent(intent).map(toReadingAiSource);
+    const data = await request("/api/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ intent, message, history, nodes, existingEdges: [], ai: selection }),
+    });
+    session.messages.push({ role: "assistant", content: data.message, citations: data.citations ?? [], ai: data.ai });
+    session.updatedAt = new Date().toISOString();
+    if (data.ai?.quota) readingAiConfig.trial = { ...readingAiConfig.trial, ...data.ai.quota };
+    saveReadingChats();
+    renderReadingChat();
+    $("#reading-ai-chat-status").textContent = `${data.ai?.provider || "AI"} · 回答不会修改原文`;
+  } catch (error) {
+    session.messages.push({ role: "assistant", content: `请求失败：${error.message}`, error: true });
+    saveReadingChats();
+    renderReadingChat();
+    $("#reading-ai-chat-status").textContent = "发送失败，请检查 AI 设置";
+  } finally {
+    button.disabled = false;
+    button.textContent = "发送";
+  }
+};
 
 $("#search-form").onsubmit = (event) => {
   event.preventDefault();
@@ -610,6 +843,15 @@ $("#copy-selection").onclick = async () => {
   }
   hideSelectionMenu();
 };
+$("#ask-ai-selection").onclick = () => {
+  if (!pending?.text) return;
+  const selectedText = pending.text;
+  hideSelectionMenu();
+  getSelection()?.removeAllRanges();
+  $("#reading-ai-chat-intent").value = "note_answer";
+  $("#reading-ai-chat-input").value = `请结合原文解释这段内容：\n\n> ${selectedText.replaceAll("\n", "\n> ")}`;
+  openReadingAiChat();
+};
 $("#archive-selection").onclick = async () => {
   if (!pending || !current) return;
   const anchor =
@@ -632,6 +874,12 @@ $("#archive-selection").onclick = async () => {
 $("#archive-success-close").onclick = () => ($("#archive-success").hidden = true);
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (!$("#reading-ai-chat-panel").hidden) {
+    closeReadingAiChat();
+    $("#reading-ai-chat-toggle").focus();
+    event.preventDefault();
+    return;
+  }
   const open = [...document.querySelectorAll(".modal:not([hidden])")].at(-1);
   if (open) {
     open.hidden = true;

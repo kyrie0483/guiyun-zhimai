@@ -1,0 +1,18 @@
+{
+  "id": "draft-network",
+  "version": "1.5.1",
+  "intents": [
+    "net_suggest_edges",
+    "net_summarize",
+    "net_summarize_node",
+    "net_summarize_edge",
+    "conversation_to_network"
+  ],
+  "output": [
+    "extend-network",
+    "create-network-node",
+    "update-network-summary",
+    "update-node-summary",
+    "update-edge-summary"
+  ]
+}

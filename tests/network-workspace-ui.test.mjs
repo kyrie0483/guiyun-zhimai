@@ -72,3 +72,58 @@ test("主网络节点使用归云式圆形节点", async () => {
   assert.match(styles, /\.network #graph \.stage-node\.center\{width:96px;height:96px;min-height:96px;border-radius:50%/);
   assert.match(styles, /-webkit-line-clamp:3/);
 });
+
+test("归云 AI 对话提供持久会话、网络范围和移动端抽屉", async () => {
+  const [html, script, styles] = await files;
+  assert.match(html, /id="ai-chat-toggle"[^>]*aria-controls="ai-chat-panel"/);
+  assert.match(html, /id="ai-chat-mobile"[^>]*aria-controls="ai-chat-panel"/);
+  assert.match(html, /id="ai-chat-conversation"/);
+  assert.match(html, /id="ai-chat-intent"/);
+  assert.match(html, /id="ai-chat-form"/);
+  assert.match(script, /guiyun-zhimai:ai-chat:v1/);
+  assert.match(script, /\/api\/ai\/chat/);
+  assert.match(script, /markdownToSafeHtml/);
+  assert.match(script, /data-chat-node/);
+  assert.match(styles, /\.ai-chat-panel\{position:fixed/);
+  assert.match(styles, /@media\(max-width:760px\)/);
+});
+
+test("网络总结使用安全 Markdown 渲染而不是显示原始符号", async () => {
+  const [, script, styles] = await files;
+  assert.match(script, /summary=publicNetworkSummary\(n\.summary\)/);
+  assert.match(script, /#summary"\)\.innerHTML=summary\?markdownToSafeHtml\(summary\)/);
+  assert.match(script, /publicNetworkSummary=value=>.*?replace\(\/\[（\(\]\?/s);
+  assert.doesNotMatch(script, /#summary"\)\.textContent=summary/);
+  assert.match(styles, /\.network-page \.network \.summary h1/);
+  assert.match(styles, /white-space:normal/);
+});
+
+test("关系总结入口和对象草案统一使用安全 Markdown", async () => {
+  const [html, script, styles] = await files;
+  assert.match(html, /id="ai-edge"/);
+  assert.match(script, /#ai-edge"\)\.onclick=.*summarize-edge/);
+  assert.match(script, /class=\"object-markdown\".*markdownToSafeHtml/s);
+  assert.match(script, /class=\"proposal-markdown\".*markdownToSafeHtml/s);
+  assert.match(styles, /\.object-markdown,\.proposal-markdown/);
+});
+
+test("网络可以重命名并使用可恢复回收站", async () => {
+  const [html, script, styles] = await files;
+  assert.match(html, /id="rename-network"/);
+  assert.match(html, /id="trash-network"/);
+  assert.match(html, /id="network-trash-dialog"/);
+  assert.match(script, /renameNetwork\(state/);
+  assert.match(script, /trashNetwork\(state/);
+  assert.match(script, /restoreNetwork\(state/);
+  assert.match(styles, /\.network-trash-card/);
+});
+
+test("登录用户状态接入服务端同步", async () => {
+  const [, networkScript] = await files;
+  const readerScript = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+  const server = await readFile(new URL("../src/server/application.mjs", import.meta.url), "utf8");
+  assert.match(networkScript, /connectUserState\(state/);
+  assert.match(readerScript, /connectUserState\(state/);
+  assert.match(server, /\/api\/user\/state/);
+  assert.match(server, /cloudPersistence/);
+});

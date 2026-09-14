@@ -6,6 +6,7 @@ import { createOAuthManager } from "./src/server/oauth.mjs";
 import { ZhihuClient } from "./src/server/zhihu-client.mjs";
 import { createAiClient } from "./src/server/ai-client.mjs";
 import { createTrialQuotaStore } from "./src/server/ai-quota.mjs";
+import { createUserDataStore } from "./src/server/user-data-store.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const config = loadConfig();
@@ -30,8 +31,12 @@ const ai = createAiClient({
   },
   quota: aiQuota,
 });
+const userData = createUserDataStore({
+  restUrl: config.ai.upstashRedisRestUrl,
+  restToken: config.ai.upstashRedisRestToken,
+});
 
-const application = createApplication({ root, config, zhihu, oauth, ai });
+const application = createApplication({ root, config, zhihu, oauth, ai, userData });
 createServer(application).listen(config.port, config.host, () => {
   const displayUrl = config.publicBaseUrl ?? `http://localhost:${config.port}`;
   console.log(`归云·知脉已启动：${displayUrl}`);

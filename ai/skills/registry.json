@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "routes": {
+    "general_chat": "chat",
+    "note_answer": "chat",
+    "note_search": "chat",
+    "net_answer": "chat",
+    "net_search": "chat",
+    "translate": "chat",
+    "net_suggest_edges": "draft-network",
+    "net_summarize": "draft-network",
+    "net_summarize_node": "draft-network",
+    "net_summarize_edge": "draft-network"
+  }
+}

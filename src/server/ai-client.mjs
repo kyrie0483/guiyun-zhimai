@@ -1,4 +1,5 @@
 import { AppError, parseStructuredModelOutput } from "./zhihu-client.mjs";
+import { guiyunPromptMetadata } from "./ai-prompts.mjs";
 
 export const AI_PROVIDERS = {
   qwen: {
@@ -61,8 +62,54 @@ function providerError(status) {
   return "模型服务拒绝了请求，请检查模型配置。";
 }
 
+function mergeUsage(one = {}, two = {}) {
+  const add = (left, right) => left === undefined && right === undefined ? undefined : (Number(left) || 0) + (Number(right) || 0);
+  return {
+    inputTokens: add(one.inputTokens, two.inputTokens),
+    outputTokens: add(one.outputTokens, two.outputTokens),
+    totalTokens: add(one.totalTokens, two.totalTokens),
+  };
+}
+
+function isStructuredOutputError(error) {
+  return ["AI_RESPONSE_INVALID", "ZHIHU_RESPONSE_INVALID"].includes(error?.code);
+}
+
 function chatPath(provider) {
   return provider === "deepseek" ? "/chat/completions" : "/chat/completions";
+}
+
+function visibleChatAnswer(value, allowedSourceIds) {
+  const text = String(value ?? "").trim();
+  if (!text || text.length > 100_000) throw new AppError("AI_RESPONSE_INVALID", "模型没有返回可展示的回答。", 502);
+  const used = new Set();
+  const markdown = text.replace(/\[S(\d+)\]/gu, marker => {
+    if (!allowedSourceIds.has(marker.slice(1, -1))) return "";
+    used.add(marker.slice(1, -1));
+    return marker;
+  });
+  return { markdown, usedSourceIds: used };
+}
+
+function markdownLineKind(line) {
+  if (!line.trim()) return "blank";
+  const fence = line.match(/^\s*(\x60{3,}|~{3,})/u);
+  if (fence) return "fence:" + fence[1][0];
+  const heading = line.match(/^\s*(#{1,6})\s/u);
+  if (heading) return "heading:" + heading[1].length;
+  if (/^\s*[-*+]\s+/u.test(line)) return "unordered-list";
+  if (/^\s*\d+[.)]\s+/u.test(line)) return "ordered-list";
+  if (/^\s*>\s?/u.test(line)) return "blockquote";
+  return "text";
+}
+
+function translationMatches(markdown, contract) {
+  if (!contract) return true;
+  const normalized = String(markdown ?? "").replace(/\r\n?/gu, "\n").trim();
+  const lines = normalized.split("\n");
+  if (JSON.stringify(lines.map(markdownLineKind)) !== JSON.stringify(contract.lineKinds)) return false;
+  if (contract.protectedLines.some(item => lines[item.index] !== item.value)) return false;
+  return contract.protectedFragments.every(fragment => normalized.includes(fragment));
 }
 
 async function callCompatible({ provider, model, apiKey, messages, maxOutputTokens, fetchImpl }) {
@@ -133,6 +180,7 @@ export function createAiClient({ trial, quota, fetchImpl = fetch }) {
     providers() {
       return Object.entries(AI_PROVIDERS).map(([id, value]) => ({ id, name: value.name, models: value.models }));
     },
+    promptMetadata() { return guiyunPromptMetadata(); },
     trialAvailable: Boolean(trial.apiKey && quota.configured),
     async quota(uid) { return quota.status(uid); },
     async assist(input, session) {
@@ -156,26 +204,111 @@ export function createAiClient({ trial, quota, fetchImpl = fetch }) {
       const estimatedInput = estimateTokens(messages);
       if (estimatedInput > 30_000) throw new AppError("AI_INPUT_TOO_LARGE", "本次 AI 输入过长，请减少节点或说明内容。", 413);
       if (mode === "trial") {
-        reservation = estimatedInput + maxOutputTokens;
+        reservation = estimatedInput * 2 + maxOutputTokens * 2;
         await quota.reserve(session.uid, reservation);
       }
       try {
-        const generated = provider === "openai"
-          ? await callOpenAi({ model, apiKey, messages, maxOutputTokens, fetchImpl })
-          : await callCompatible({ provider, model, apiKey, messages, maxOutputTokens, fetchImpl });
+        const generate = currentMessages => provider === "openai"
+          ? callOpenAi({ model, apiKey, messages: currentMessages, maxOutputTokens, fetchImpl })
+          : callCompatible({ provider, model, apiKey, messages: currentMessages, maxOutputTokens, fetchImpl });
+        let generated = await generate(messages), parsed = parseStructuredModelOutput(generated.text), validated, repaired = false, fallbackActual = estimatedInput + estimateTokens(generated.text);
+        try {
+          if (!parsed) throw new AppError("AI_RESPONSE_INVALID", "模型没有返回有效的结构化结果。", 502);
+          validated = validateResult(parsed);
+        } catch (error) {
+          if (!prepared.repair || !isStructuredOutputError(error)) throw error;
+          const repairMessages = [...messages, { role: "assistant", content: generated.text.slice(0, 30_000) }, { role: "user", content: prepared.repair }];
+          if (estimateTokens(repairMessages) > 30_000) throw new AppError("AI_RESPONSE_INVALID", "模型草案过长，无法安全纠错。", 502);
+          const corrected = await generate(repairMessages);
+          parsed = parseStructuredModelOutput(corrected.text);
+          if (!parsed) throw new AppError("AI_RESPONSE_INVALID", "模型连续两次未返回有效的结构化结果。", 502);
+          validated = validateResult(parsed);
+          fallbackActual += estimateTokens(repairMessages) + estimateTokens(corrected.text);
+          generated = { text: corrected.text, usage: mergeUsage(generated.usage, corrected.usage) };
+          repaired = true;
+        }
+        const actual = generated.usage.totalTokens ?? fallbackActual;
+        if (mode === "trial") {
+          const adjustment = actual - reservation;
+          reservation = 0;
+          await quota.adjust(session.uid, adjustment);
+        }
+        return {
+          demo: false,
+          result: validated,
+          ai: {
+            mode,
+            provider,
+            model,
+            repaired,
+            prompt: {
+              harness: prepared.harnessVersion,
+              system: prepared.systemPromptVersion,
+              skill: prepared.skill,
+              intent: prepared.intent,
+            },
+            usage: { ...generated.usage, totalTokens: actual },
+            ...(mode === "trial" ? { quota: await quota.status(session.uid) } : {}),
+          },
+        };
+      } catch (error) {
+        if (mode === "trial" && reservation) await quota.adjust(session.uid, -reservation).catch(() => {});
+        throw error;
+      }
+    },
+    async chat(input, session) {
+      const mode = input?.ai?.mode === "own" ? "own" : "trial";
+      let provider, model, apiKey, reservation = 0;
+      if (mode === "own") {
+        provider = String(input?.ai?.provider ?? "");
+        model = cleanModel(provider, input?.ai?.model);
+        apiKey = String(input?.ai?.apiKey ?? "").trim();
+        if (!apiKey || apiKey.length > 1_000) throw new AppError("AI_KEY_REQUIRED", "请输入当前供应商的 API Key。", 400);
+      } else {
+        if (!session) throw new AppError("AUTH_REQUIRED", "使用站点试用额度前，请先登录知乎。", 401);
+        provider = String(trial.provider);
+        model = cleanModel(provider, trial.model);
+        apiKey = trial.apiKey;
+        if (!apiKey) throw new AppError("AI_TRIAL_NOT_CONFIGURED", "站点试用尚未开放，请配置自己的 API Key。", 503);
+      }
+      const { prepared } = input;
+      const messages = [{ role: "system", content: prepared.system }, { role: "user", content: prepared.user }];
+      const estimatedInput = estimateTokens(messages);
+      if (estimatedInput > 30_000) throw new AppError("AI_INPUT_TOO_LARGE", "本次 AI 输入过长，请减少网络内容或对话历史。", 413);
+      if (mode === "trial") {
+        reservation = estimatedInput * 2 + maxOutputTokens * 2;
+        await quota.reserve(session.uid, reservation);
+      }
+      try {
+        const generate = currentMessages => provider === "openai"
+          ? callOpenAi({ model, apiKey, messages: currentMessages, maxOutputTokens, fetchImpl })
+          : callCompatible({ provider, model, apiKey, messages: currentMessages, maxOutputTokens, fetchImpl });
+        let generated = await generate(messages), repaired = false;
+        if (!translationMatches(generated.text, prepared.translationContract)) {
+          const repairMessages = [...messages, { role: "assistant", content: generated.text.slice(0, 30_000) }, { role: "user", content: prepared.translationContract.repair }];
+          if (estimateTokens(repairMessages) > 30_000) throw new AppError("AI_RESPONSE_INVALID", "译文过长，无法安全纠正格式。", 502);
+          const corrected = await generate(repairMessages);
+          if (!translationMatches(corrected.text, prepared.translationContract)) throw new AppError("AI_RESPONSE_INVALID", "模型连续两次未能保留 Markdown 结构，请缩短原文后重试。", 502);
+          generated = { text: corrected.text, usage: mergeUsage(generated.usage, corrected.usage) };
+          repaired = true;
+        }
+        const answer = visibleChatAnswer(generated.text, prepared.sourceReferenceIds);
         const actual = generated.usage.totalTokens ?? estimatedInput + estimateTokens(generated.text);
         if (mode === "trial") {
           const adjustment = actual - reservation;
           reservation = 0;
           await quota.adjust(session.uid, adjustment);
         }
-        const parsed = parseStructuredModelOutput(generated.text);
-        if (!parsed) throw new AppError("AI_RESPONSE_INVALID", "模型没有返回有效的结构化结果。", 502);
-        const validated = validateResult(parsed);
+        const citations = prepared.sourceCatalog.filter(source => answer.usedSourceIds.has(source.id));
         return {
-          demo: false,
-          result: validated,
-          ai: { mode, provider, model, usage: { ...generated.usage, totalTokens: actual }, ...(mode === "trial" ? { quota: await quota.status(session.uid) } : {}) },
+          message: answer.markdown,
+          citations,
+          ai: {
+            mode, provider, model, repaired,
+            prompt: { harness: prepared.harnessVersion, system: prepared.systemPromptVersion, skill: prepared.skill, intent: prepared.intent },
+            usage: { ...generated.usage, totalTokens: actual },
+            ...(mode === "trial" ? { quota: await quota.status(session.uid) } : {}),
+          },
         };
       } catch (error) {
         if (mode === "trial" && reservation) await quota.adjust(session.uid, -reservation).catch(() => {});

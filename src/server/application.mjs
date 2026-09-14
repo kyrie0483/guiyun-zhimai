@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { extname, normalize, resolve, sep } from "node:path";
 import { AppError } from "./zhihu-client.mjs";
+import { buildGuiyunChatPrompt } from "./ai-prompts.mjs";
 
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -38,11 +39,11 @@ function json(res, status, data, id, headers = {}) {
   res.end(JSON.stringify(data));
 }
 
-async function readJson(req) {
+async function readJson(req, maxBytes = 150_000) {
   let source = "";
   for await (const chunk of req) {
     source += chunk;
-    if (Buffer.byteLength(source) > 150_000) {
+    if (Buffer.byteLength(source) > maxBytes) {
       throw new AppError("REQUEST_TOO_LARGE", "请求内容过大。", 413);
     }
   }
@@ -64,7 +65,7 @@ function isTrustedOrigin(req, publicBaseUrl) {
   return allowed.has(origin);
 }
 
-export function createApplication({ root, config, zhihu, oauth, ai }) {
+export function createApplication({ root, config, zhihu, oauth, ai, userData = { configured: false } }) {
   const absoluteRoot = resolve(root);
 
   async function routeApi(req, res, url, id) {
@@ -95,6 +96,7 @@ export function createApplication({ root, config, zhihu, oauth, ai }) {
             oauthUserContent: zhihu.configured && oauth.configured,
             aiProviders: Boolean(ai),
             aiTrial: Boolean(ai?.trialAvailable && oauth.configured),
+            cloudPersistence: Boolean(userData.configured && oauth.configured),
           },
         },
         id,
@@ -118,6 +120,7 @@ export function createApplication({ root, config, zhihu, oauth, ai }) {
       const session = oauth.session(req);
       return json(res, 200, {
         providers: ai.providers(),
+        prompt: ai.promptMetadata(),
         trial: {
           available: ai.trialAvailable && oauth.configured,
           loginRequired: !session,
@@ -167,12 +170,40 @@ export function createApplication({ root, config, zhihu, oauth, ai }) {
             edges: prepared.edges,
             edgeId: prepared.edgeId,
             candidateNodeIds: prepared.candidateNodeIds,
+            sourceReferenceIds: prepared.sourceReferenceIds,
           },
         ),
       }, oauth.session(req)), id);
     }
+    if (req.method === "POST" && url.pathname === "/api/ai/chat") {
+      const input = await readJson(req);
+      let prepared;
+      try {
+        prepared = buildGuiyunChatPrompt({
+          intent: input.intent,
+          message: input.message,
+          nodes: Array.isArray(input.nodes) ? input.nodes : [],
+          edges: Array.isArray(input.existingEdges) ? input.existingEdges : [],
+          history: Array.isArray(input.history) ? input.history : [],
+        });
+      } catch (error) {
+        throw new AppError("AI_CHAT_INVALID", error.message || "对话请求无效。", 400);
+      }
+      return json(res, 200, await ai.chat({ prepared, ai: input.ai }, oauth.session(req)), id);
+    }
     if (req.method === "GET" && url.pathname === "/api/auth/session") {
       return json(res, 200, { user: oauth.session(req) }, id);
+    }
+    if (req.method === "GET" && url.pathname === "/api/user/state") {
+      const session = oauth.session(req);
+      if (!session) throw new AppError("AUTH_REQUIRED", "请先使用知乎账号登录。", 401);
+      return json(res, 200, await userData.load(session.uid), id);
+    }
+    if (req.method === "PUT" && url.pathname === "/api/user/state") {
+      const session = oauth.session(req);
+      if (!session) throw new AppError("AUTH_REQUIRED", "请先使用知乎账号登录。", 401);
+      const input = await readJson(req, 1_100_000);
+      return json(res, 200, await userData.save(session.uid, input.state, input.expectedRevision), id);
     }
     if (req.method === "GET" && url.pathname === "/api/auth/zhihu/start") {
       const result = oauth.begin(req);

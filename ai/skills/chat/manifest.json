@@ -1,0 +1,6 @@
+{
+  "id": "chat",
+  "version": "1.5.0",
+  "intents": ["general_chat", "note_answer", "note_search", "translate", "net_answer", "net_search"],
+  "output": "markdown"
+}

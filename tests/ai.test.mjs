@@ -101,6 +101,84 @@ test("站点试用要求登录并按真实 usage 校准预留额度", async () =
   assert.deepEqual(response.ai.quota, { limit: 20_000, used: 30, remaining: 19_970 });
 });
 
+test("归云 Harness 会对无效结构执行一次模型纠错", async () => {
+  let calls = 0;
+  const ai = createAiClient({
+    trial: { provider: "deepseek", model: "deepseek-v4-flash", apiKey: "site-secret", maxOutputTokens: 1_000 },
+    quota: { configured: true, reserve() {}, adjust() {}, async status() { return { limit: 20_000, used: 80, remaining: 19_920 }; } },
+    fetchImpl: async () => {
+      calls += 1;
+      return modelResponse(calls === 1 ? { wrong: true } : { note: "修复后的总结" });
+    },
+  });
+  const response = await ai.assist({
+    ai: { mode: "own", provider: "deepseek", model: "deepseek-v4-flash", apiKey: "user-secret" },
+    prepared: { ...prepared, repair: "请重写完整 JSON", harnessVersion: "guiyun-harness@2", systemPromptVersion: "system@2", intent: "net_summarize", skill: { id: "draft-network", version: "1.5.1" } },
+    validateResult(value) {
+      if (typeof value.note !== "string") {
+        const error = new Error("invalid");
+        error.code = "AI_RESPONSE_INVALID";
+        throw error;
+      }
+      return value;
+    },
+  }, null);
+  assert.equal(calls, 2);
+  assert.equal(response.result.note, "修复后的总结");
+  assert.equal(response.ai.repaired, true);
+  assert.equal(response.ai.prompt.skill.version, "1.5.1");
+});
+
+test("AI 对话复用供应商配置并过滤伪造来源编号", async () => {
+  const ai = createAiClient({
+    trial: { provider: "deepseek", model: "deepseek-v4-flash", apiKey: "site-secret", maxOutputTokens: 1_000 },
+    quota: { configured: true, reserve() {}, adjust() {}, async status() { return { limit: 20_000, used: 0, remaining: 20_000 }; } },
+    fetchImpl: async () => new Response(JSON.stringify({
+      choices: [{ message: { content: "依据来自节点 [S1]，伪造来源 [S99]。" } }],
+      usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 },
+    }), { status: 200 }),
+  });
+  const response = await ai.chat({
+    ai: { mode: "own", provider: "deepseek", model: "deepseek-v4-flash", apiKey: "user-secret" },
+    prepared: {
+      system: "回答问题", user: "问题", intent: "net_answer",
+      sourceReferenceIds: new Set(["S1"]),
+      sourceCatalog: [{ id: "S1", title: "节点 A", nodeId: "node-a" }],
+      harnessVersion: "guiyun-harness@2", systemPromptVersion: "system@2", skill: { id: "chat", version: "1.5.0" },
+    },
+  }, null);
+  assert.match(response.message, /\[S1\]/);
+  assert.doesNotMatch(response.message, /\[S99\]/);
+  assert.deepEqual(response.citations, [{ id: "S1", title: "节点 A", nodeId: "node-a" }]);
+  assert.equal(response.ai.prompt.skill.version, "1.5.0");
+  assert.equal(JSON.stringify(response).includes("user-secret"), false);
+});
+
+test("翻译破坏 Markdown 结构时自动纠错一次", async () => {
+  let calls = 0;
+  const ai = createAiClient({
+    trial: { provider: "deepseek", model: "deepseek-v4-flash", apiKey: "site-secret", maxOutputTokens: 1_000 },
+    quota: { configured: true, reserve() {}, adjust() {}, async status() { return { limit: 20_000, used: 0, remaining: 20_000 }; } },
+    fetchImpl: async () => {
+      calls += 1;
+      const content = calls === 1 ? "The code is single-use." : "The code is single-use.\n\n- Keep the list";
+      return new Response(JSON.stringify({ choices: [{ message: { content } }], usage: { total_tokens: 30 } }), { status: 200 });
+    },
+  });
+  const response = await ai.chat({
+    ai: { mode: "own", provider: "deepseek", model: "deepseek-v4-flash", apiKey: "user-secret" },
+    prepared: {
+      system: "翻译", user: "原文", intent: "translate",
+      sourceReferenceIds: new Set(), sourceCatalog: [],
+      translationContract: { lineKinds: ["text", "blank", "unordered-list"], protectedLines: [], protectedFragments: [], repair: "保持三行结构" },
+      harnessVersion: "guiyun-harness@2", systemPromptVersion: "system@2", skill: { id: "chat", version: "1.5.0" },
+    },
+  }, null);
+  assert.equal(calls, 2);
+  assert.equal(response.message, "The code is single-use.\n\n- Keep the list");
+  assert.equal(response.ai.repaired, true);
+});
+
 test("额度存储用原子脚本拒绝超额且不暴露知乎 UID", async () => {
   const commands = [];
   const store = createTrialQuotaStore({

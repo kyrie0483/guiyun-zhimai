@@ -13,6 +13,8 @@ src/server/zhihu-client.mjs   知乎开放平台及活动内容适配器
 src/server/oauth.mjs          知乎 OAuth、state 与服务端会话
 src/server/ai-client.mjs      四供应商模型网关、响应校验与实际 Token 读取
 src/server/ai-quota.mjs       公网试用额度的原子预留与持久化计数
+src/server/user-data-store.mjs 登录用户状态的 Redis 持久化与版本冲突保护
+src/cloud-state.js            本地数据首次合并、自动同步与跨设备冲突恢复
 tests/                        核心约束和平台适配器测试
 ```
 
@@ -24,8 +26,9 @@ tests/                        核心约束和平台适配器测试
 - 四种外部模型只返回候选关系或总结草案，不能创建节点，也不能绕过确认写入。
 - 用户自带 API Key 只保存在标签页会话；站点试用 Key、额度存储 Token 和 OAuth Token 均只停留在服务端。
 - 新归档节点以 `integrationStatus: "new"` 进入待整合队列；只有网络页的用户操作会调用整合接口，候选关系必须至少接触一个待整合节点。
-- `/` 与 `/network` 复用同一领域模型和浏览器存储；页面之间只通过网络、节点 ID 导航，不复制图谱状态。
-- 正式多实例部署前，把 `oauth.mjs` 的进程内 Session 替换为共享存储，并把浏览器 `localStorage` 数据迁移到按用户隔离的数据库。
+- `/` 与 `/network` 复用同一领域模型；匿名状态保存在浏览器，登录后使用 Redis 中按用户哈希隔离的状态；页面之间只通过网络、节点 ID 导航。
+- 云端写入使用版本号做乐观并发控制；首次登录会按对象更新时间合并本地与云端网络、来源、高亮、回收站和对话。
+- 正式多实例部署前，仍需把 `oauth.mjs` 的进程内 Session 替换为共享存储；长期运营可再迁移到完整归云的 PostgreSQL 数据模型。
 
 ## 已预留的知乎接口
 
@@ -35,6 +38,8 @@ tests/                        核心约束和平台适配器测试
 | `GET /api/zhihu/hot` | 热榜 | Access Secret |
 | `GET /api/ai/config` | 四供应商目录与当前试用状态 | 无；登录后返回个人额度 |
 | `GET /api/ai/quota` | 当前登录用户的站点试用额度 | OAuth Session |
+| `GET /api/user/state` | 读取当前用户的云端知识状态 | OAuth Session |
+| `PUT /api/user/state` | 按版本写入当前用户的云端知识状态 | OAuth Session |
 | `POST /api/zhihu/ai` | 四供应商生成待确认草案 | 自带 Key，或 OAuth Session + 站点额度 |
 | `GET /api/zhihu/stories` | 黑客松故事列表 | 无 |
 | `GET /api/zhihu/knowledge` | 黑客松知识列表 | 无 |

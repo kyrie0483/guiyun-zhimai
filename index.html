@@ -25,6 +25,10 @@
         <a id="network-link" class="button network-entry" href="/network">
           <span>0 节点</span><b>进入归云网络 →</b>
         </a>
+        <button id="reading-ai-chat-toggle" class="reading-ai-toggle" type="button" aria-label="打开阅读 AI 助手" aria-controls="reading-ai-chat-panel" aria-expanded="false">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4Z"></path><path d="M8.5 9h7M8.5 12h4"></path></svg>
+          <span>问原文</span>
+        </button>
         <span id="api-state" class="badge">检查接口…</span>
         <a id="login" class="button primary" href="/api/auth/zhihu/start">知乎登录</a>
       </nav>
@@ -81,6 +85,9 @@
         <button id="copy-selection" class="selection-tool" type="button" aria-label="复制所选文字" title="复制所选文字">
           <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg>
         </button>
+        <button id="ask-ai-selection" class="selection-tool" type="button" aria-label="向 AI 询问所选文字" title="询问归云助手">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4Z"></path><path d="M8.5 9h7M8.5 12h4"></path></svg>
+        </button>
         <button id="archive-selection" class="selection-tool" type="button" aria-label="归档所选对象至网络" title="归档所选对象至网络">
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 5 4 12l8 7 7-9M7 5l5 14"></path><circle cx="7" cy="5" r="2"></circle><circle cx="4" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle><circle cx="19" cy="10" r="2"></circle></svg>
         </button>
@@ -117,6 +124,36 @@
       <div><b id="archive-success-message">归档完成</b><small>已加入待整合队列</small></div>
       <a id="archive-success-link" class="button primary" href="/network">前往网络</a>
     </aside>
+
+    <div id="reading-ai-chat-scrim" class="ai-chat-scrim" hidden></div>
+    <aside id="reading-ai-chat-panel" class="ai-chat-panel reading-ai-chat-panel" aria-label="归云阅读 AI 助手" aria-hidden="true" hidden>
+      <header class="ai-chat-header">
+        <div><span id="reading-ai-source-label">当前阅读</span><h2>归云助手</h2></div>
+        <div>
+          <a class="reading-ai-settings-link" href="/network" aria-label="前往网络页设置 AI" title="AI 设置">⚙</a>
+          <button id="reading-ai-chat-new" type="button" aria-label="新建对话" title="新建对话">＋</button>
+          <button id="reading-ai-chat-close" type="button" aria-label="关闭 AI 助手" title="关闭">×</button>
+        </div>
+      </header>
+      <div class="ai-chat-context">
+        <label>会话<select id="reading-ai-chat-conversation" aria-label="切换会话"></select></label>
+        <label>对话范围<select id="reading-ai-chat-intent">
+          <option value="note_answer">问当前原文</option>
+          <option value="note_search">检索阅读资料</option>
+          <option value="general_chat">通用对话</option>
+          <option value="translate">翻译</option>
+        </select></label>
+      </div>
+      <div id="reading-ai-chat-messages" class="ai-chat-messages" aria-live="polite"></div>
+      <form id="reading-ai-chat-form" class="ai-chat-composer">
+        <label class="sr-only" for="reading-ai-chat-input">向归云助手提问</label>
+        <textarea id="reading-ai-chat-input" rows="3" maxlength="8000" placeholder="围绕当前原文提问，Enter 发送，Shift+Enter 换行"></textarea>
+        <div><small id="reading-ai-chat-status">回答不会修改原文或网络</small><button id="reading-ai-chat-send" class="primary" type="submit">发送</button></div>
+      </form>
+    </aside>
+    <button id="reading-ai-chat-mobile" class="ai-chat-mobile reading-ai-chat-mobile" type="button" aria-label="打开阅读 AI 助手" aria-controls="reading-ai-chat-panel" aria-expanded="false">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4Z"></path><path d="M8.5 9h7M8.5 12h4"></path></svg>
+    </button>
 
     <nav class="mobile-tabs" aria-label="移动端阅读工作区">
       <button data-panel="sources" class="active">阅读来源</button>
