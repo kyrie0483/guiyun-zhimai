@@ -21,6 +21,7 @@ let pending = null;
 let pendingSelectionRange = null;
 let latestSearchRequest = 0;
 let readingAiConfig = { providers: [], trial: { available: false, loginRequired: true } };
+let pendingReadingAiAction = null;
 const AI_PREFERENCES_KEY = "guiyun-zhimai:ai-preferences:v1";
 const AI_SECRETS_KEY = "guiyun-zhimai:ai-session-secrets:v1";
 const READING_CHAT_PREFIX = "reading:";
@@ -57,22 +58,100 @@ function readJsonStorage(storage, key) {
   }
 }
 
-function readingAiSelection() {
+function readReadingAiSettings() {
   const preferences = readJsonStorage(localStorage, AI_PREFERENCES_KEY);
   const secrets = readJsonStorage(sessionStorage, AI_SECRETS_KEY);
-  if (preferences.mode !== "own") return { mode: "trial" };
-  const provider = String(preferences.provider || readingAiConfig.providers[0]?.id || "deepseek");
+  const fallbackProvider = readingAiConfig.providers.some((item) => item.id === "openai-next")
+    ? "openai-next"
+    : readingAiConfig.providers[0]?.id || "deepseek";
+  const provider = readingAiConfig.providers.some((item) => item.id === preferences.provider)
+    ? preferences.provider
+    : fallbackProvider;
   const definition = readingAiConfig.providers.find((item) => item.id === provider);
   const preferredModel = preferences.models?.[provider];
   const model = definition?.models.includes(preferredModel)
     ? preferredModel
-    : preferredModel || definition?.models[0] || "";
+    : definition?.models[0] || "";
   return {
-    mode: "own",
+    mode: preferences.mode === "own" ? "own" : "trial",
     provider,
     model,
     apiKey: String(secrets.apiKeys?.[provider] || ""),
   };
+}
+
+function saveReadingAiSettings(settings) {
+  const preferences = readJsonStorage(localStorage, AI_PREFERENCES_KEY);
+  const secrets = readJsonStorage(sessionStorage, AI_SECRETS_KEY);
+  const models = { ...(preferences.models || {}), [settings.provider]: settings.model };
+  const apiKeys = { ...(secrets.apiKeys || {}), [settings.provider]: settings.apiKey.trim() };
+  localStorage.setItem(AI_PREFERENCES_KEY, JSON.stringify({ mode: settings.mode, provider: settings.provider, models }));
+  sessionStorage.setItem(AI_SECRETS_KEY, JSON.stringify({ apiKeys }));
+}
+
+function readingAiSelection() {
+  const settings = readReadingAiSettings();
+  return settings.mode === "own"
+    ? { mode: "own", provider: settings.provider, model: settings.model, apiKey: settings.apiKey }
+    : { mode: "trial" };
+}
+
+function renderReadingAiModels(preferred = "") {
+  const provider = readingAiConfig.providers.find((item) => item.id === $("#ai-provider").value);
+  const models = provider?.models || [];
+  $("#ai-model").innerHTML = models
+    .map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`)
+    .join("");
+  $("#ai-model").value = models.includes(preferred) ? preferred : models[0] || "";
+}
+
+function renderReadingTrialStatus() {
+  const trial = readingAiConfig.trial;
+  if (trial.available && Number.isFinite(trial.remaining)) {
+    $("#ai-trial-status").textContent = `剩余 ${Number(trial.remaining).toLocaleString()} / ${Number(trial.limit).toLocaleString()} Token`;
+  } else if (trial.available && trial.loginRequired) {
+    $("#ai-trial-status").textContent = "登录知乎后可使用";
+  } else {
+    $("#ai-trial-status").textContent = "站点暂未开放试用，请使用自己的 Key";
+  }
+}
+
+function syncReadingAiModeFields(mode) {
+  $("#ai-own-settings").hidden = mode !== "own";
+  $("#ai-trial-status").hidden = mode !== "trial";
+}
+
+function openReadingAiSettings() {
+  const settings = readReadingAiSettings();
+  $("#ai-provider").innerHTML = readingAiConfig.providers
+    .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`)
+    .join("");
+  $("#ai-provider").value = settings.provider;
+  renderReadingAiModels(settings.model);
+  $("#ai-api-key").value = settings.apiKey;
+  document.querySelector(`input[name="ai-mode"][value="${settings.mode}"]`).checked = true;
+  syncReadingAiModeFields(settings.mode);
+  renderReadingTrialStatus();
+  $("#ai-settings-dialog").hidden = false;
+}
+
+function ensureReadingAiConfigured(resume) {
+  const settings = readReadingAiSettings();
+  const trialReady = settings.mode === "trial" && readingAiConfig.trial.available && !readingAiConfig.trial.loginRequired;
+  const ownReady = settings.mode === "own" && Boolean(settings.apiKey.trim()) && Boolean(settings.model);
+  if (trialReady || ownReady) return true;
+  pendingReadingAiAction = resume;
+  openReadingAiSettings();
+  document.querySelector('input[name="ai-mode"][value="own"]').checked = true;
+  syncReadingAiModeFields("own");
+  if (readingAiConfig.providers.some((item) => item.id === "openai-next")) {
+    const currentSettings = readReadingAiSettings();
+    $("#ai-provider").value = "openai-next";
+    renderReadingAiModels(currentSettings.provider === "openai-next" ? currentSettings.model : "");
+  }
+  $("#ai-api-key").focus();
+  toast("请输入 API Key，保存后将自动继续");
+  return false;
 }
 
 function renderAccountLink(user) {
@@ -583,6 +662,42 @@ $("#reading-ai-chat-toggle").onclick = () =>
   $("#reading-ai-chat-panel").hidden ? openReadingAiChat() : closeReadingAiChat();
 $("#reading-ai-chat-mobile").onclick = () =>
   $("#reading-ai-chat-panel").hidden ? openReadingAiChat() : closeReadingAiChat();
+$("#reading-ai-settings").onclick = $("#reading-ai-settings-inline").onclick = () => {
+  pendingReadingAiAction = null;
+  openReadingAiSettings();
+};
+$("#ai-settings-close").onclick = $("#ai-settings-cancel").onclick = () => {
+  pendingReadingAiAction = null;
+  $("#ai-settings-dialog").hidden = true;
+};
+document.querySelectorAll('input[name="ai-mode"]').forEach((input) => {
+  input.onchange = () => syncReadingAiModeFields(input.value);
+});
+$("#ai-provider").onchange = () => {
+  const settings = readReadingAiSettings();
+  renderReadingAiModels(settings.provider === $("#ai-provider").value ? settings.model : "");
+  $("#ai-api-key").value = readJsonStorage(sessionStorage, AI_SECRETS_KEY).apiKeys?.[$("#ai-provider").value] || "";
+};
+$("#ai-settings-form").onsubmit = (event) => {
+  event.preventDefault();
+  const mode = document.querySelector('input[name="ai-mode"]:checked')?.value || "trial";
+  const settings = {
+    mode,
+    provider: $("#ai-provider").value,
+    model: $("#ai-model").value,
+    apiKey: $("#ai-api-key").value,
+  };
+  if (mode === "own" && (!settings.apiKey.trim() || !settings.model)) return toast("请完整填写当前供应商的模型和 API Key");
+  if (mode === "trial" && (!readingAiConfig.trial.available || readingAiConfig.trial.loginRequired)) {
+    return toast(readingAiConfig.trial.loginRequired ? "请先登录知乎，或使用自己的 API Key" : "站点试用暂未开放，请使用自己的 API Key");
+  }
+  saveReadingAiSettings(settings);
+  $("#ai-settings-dialog").hidden = true;
+  const resume = pendingReadingAiAction;
+  pendingReadingAiAction = null;
+  toast(mode === "own" ? "已保存当前标签页的 AI 设置" : "已切换到站点试用");
+  if (resume) queueMicrotask(resume);
+};
 $("#reading-ai-chat-close").onclick = closeReadingAiChat;
 $("#reading-ai-chat-scrim").onclick = closeReadingAiChat;
 $("#reading-ai-chat-new").onclick = () => {
@@ -623,10 +738,8 @@ $("#reading-ai-chat-form").onsubmit = async (event) => {
   if ((intent === "note_answer" || intent === "note_search") && !readingSourcesForIntent(intent).length) {
     return toast(intent === "note_answer" ? "请先打开一篇阅读内容" : "请先加入至少一篇阅读资料");
   }
+  if (!ensureReadingAiConfigured(() => $("#reading-ai-chat-form").requestSubmit())) return;
   const selection = readingAiSelection();
-  if (selection.mode === "own" && (!selection.apiKey || !selection.model)) {
-    return toast("请先在网络页左下角完成 AI 设置");
-  }
   const session = activeReadingChat();
   const button = $("#reading-ai-chat-send");
   const history = session.messages.slice(-12).map((item) => ({ role: item.role, content: item.content }));
@@ -874,16 +987,18 @@ $("#archive-selection").onclick = async () => {
 $("#archive-success-close").onclick = () => ($("#archive-success").hidden = true);
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  const open = [...document.querySelectorAll(".modal:not([hidden])")].at(-1);
+  if (open) {
+    open.hidden = true;
+    pendingReadingAiAction = null;
+    event.preventDefault();
+    return;
+  }
   if (!$("#reading-ai-chat-panel").hidden) {
     closeReadingAiChat();
     $("#reading-ai-chat-toggle").focus();
     event.preventDefault();
     return;
-  }
-  const open = [...document.querySelectorAll(".modal:not([hidden])")].at(-1);
-  if (open) {
-    open.hidden = true;
-    event.preventDefault();
   }
 });
 

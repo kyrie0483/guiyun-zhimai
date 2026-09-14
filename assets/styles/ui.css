@@ -135,7 +135,7 @@ html{color-scheme:light;background:var(--paper)}body{background:var(--paper);col
 .ai-chat-citations{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.ai-chat-citations button{max-width:100%;overflow:hidden;padding:5px 8px;border:1px solid #cfe0da;border-radius:999px;background:#f3f8f6;color:#285b4e;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.ai-chat-citations button:hover{border-color:#76a495;background:#e8f3ef}
 .ai-chat-composer{display:grid;gap:8px;padding:12px 14px 14px;border-top:1px solid var(--line);background:#fff}.ai-chat-composer textarea{width:100%;min-height:72px;max-height:180px;resize:vertical;padding:11px 12px;border:1px solid #cddcd6;border-radius:12px;background:#fbfcfb;color:var(--ink);font:inherit;line-height:1.5}.ai-chat-composer textarea:focus{outline:0;border-color:#75a394;box-shadow:0 0 0 3px #2b75601c}.ai-chat-composer>div{display:flex;align-items:center;justify-content:space-between;gap:10px}.ai-chat-composer small{overflow:hidden;color:#7a8c86;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.ai-chat-composer button{min-width:68px}
 .reading-ai-toggle{display:inline-flex;align-items:center;gap:7px;padding:9px 11px;color:var(--brand);font-weight:650}.reading-ai-toggle svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.reading-ai-toggle:hover,.reading-ai-toggle[aria-expanded="true"]{border-color:var(--brand);background:var(--brand-soft)}
-.reading-ai-chat-panel{top:64px}.reading-ai-chat-panel .ai-chat-header span{display:block;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reading-ai-settings-link{display:grid;width:34px;height:34px;place-items:center;border-radius:9px;color:#526b63;text-decoration:none}.reading-ai-settings-link:hover{background:#edf5f1;color:var(--brand)}
+.reading-ai-chat-panel{top:64px}.reading-ai-chat-panel .ai-chat-header span{display:block;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.reading-ai-settings-link{display:grid;width:34px;height:34px;place-items:center;padding:0;border:0;border-radius:9px;background:transparent;color:#526b63;text-decoration:none}.reading-ai-settings-link:hover{background:#edf5f1;color:var(--brand)}
 @keyframes ai-chat-enter{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
 
 /* Guiyun circular graph nodes: 42/46/48px radii match the source network. */
@@ -225,6 +225,40 @@ html{color-scheme:light;background:var(--paper)}body{background:var(--paper);col
   .ai-chat-context{grid-template-columns:1fr}.ai-chat-message{width:94%}
   .network-topbar #login span:not(.account-avatar){display:none}
   .network-edit-menu{grid-template-columns:1fr}
+}
+
+/* Reading workspace AI utility and compact cross-page navigation. */
+.reading-page .results{display:flex;flex-direction:column}
+.reading-sidebar-utilities{position:sticky;z-index:5;bottom:0;display:flex;align-items:center;min-height:54px;margin-top:auto;padding:8px 12px!important;border-top:1px solid var(--line);background:#fffffff2;backdrop-filter:blur(12px)}
+.reading-page>.modal{z-index:220}
+.network-entry-icon{display:none;width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.profile-nav-link{gap:7px}.profile-nav-link svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+@media(min-width:761px){.reading-page .results{display:flex!important}}
+@media(min-width:1181px){.reading-workspace{height:calc(100dvh - 138px)}}
+
+@media(max-width:760px){
+  .reading-page .workspace[data-mobile-panel="sources"] .results{display:flex}
+  .reading-topbar{gap:5px;padding-inline:9px}
+  .reading-topbar .brand{min-width:0;flex:1}.reading-topbar .brand b{font-size:18px;white-space:nowrap}.reading-topbar .brand::before{width:29px;height:28px}
+  .reading-topbar nav{flex:none;gap:3px}.reading-topbar nav button,.reading-topbar nav .button{min-width:36px;min-height:36px;padding:7px}
+  .reading-topbar #hot{display:none}.reading-topbar .network-entry{display:grid;place-items:center}.reading-topbar .network-entry-icon{display:block}.reading-topbar .network-entry b,.reading-topbar .network-entry span{display:none}
+  .reading-sidebar-utilities{bottom:55px}
+}
+
+@media(max-width:640px){
+  .profile-page .profile-topbar .brand small{display:none}
+  .profile-page .profile-topbar nav{gap:4px}
+  .profile-page .profile-topbar nav .button{display:grid;width:38px;height:38px;place-items:center;padding:0}
+  .profile-page .profile-topbar nav .button span{display:none}
+  .profile-page .profile-topbar nav button{min-height:38px;padding:7px 9px}
+}
+
+@media(max-width:390px){
+  .reading-topbar .brand b{font-size:16px}.reading-topbar .brand::before{width:26px}
+  .reading-topbar #login span:not(.account-avatar){display:none}
+  .profile-page .profile-topbar .brand b{font-size:18px}.profile-page .profile-topbar .brand::before{width:30px}
+  .profile-page .profile-topbar nav button{font-size:11px}
 }
 
 /* Network lifecycle and consistent safe Markdown surfaces. */
