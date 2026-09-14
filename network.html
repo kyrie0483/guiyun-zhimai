@@ -13,14 +13,20 @@
     <header class="topbar network-topbar">
       <a class="brand brand-link" href="/"><b>归云·知脉</b></a>
       <nav>
-        <a class="button" href="/">← 返回阅读</a>
+        <a class="network-chrome-button" href="/" aria-label="返回阅读" data-tooltip="返回阅读">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"></path><path d="M9 12h10"></path></svg>
+          <span class="sr-only">返回阅读</span>
+        </a>
         <span id="api-state" class="badge">检查接口…</span>
         <a id="login" class="button primary" href="/api/auth/zhihu/start">知乎登录</a>
       </nav>
     </header>
 
     <main class="network-page-layout">
-      <aside class="network-navigation">
+      <aside class="network-navigation" aria-label="知识网络导航">
+        <button id="collapse-left-panel" class="network-panel-toggle panel-toggle-inside panel-toggle-left" type="button" aria-label="收起知识网络导航" data-tooltip="收起左栏">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M8 3v18"></path></svg>
+        </button>
         <div class="network-page-heading">
           <span class="archive-kicker">你的知识空间</span>
           <h1>归云网络</h1>
@@ -36,26 +42,51 @@
           <div><dt id="node-count">0</dt><dd>节点</dd></div>
           <div><dt id="edge-count">0</dt><dd>关系</dd></div>
         </dl>
+        <div class="network-sidebar-utilities" role="toolbar" aria-label="工作区设置">
+          <button id="ai-settings" class="network-utility-button" type="button" aria-label="打开 AI 设置与用量" data-tooltip="AI 设置与用量">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path><path d="m18 14 .7 2.3L21 17l-2.3.7L18 20l-.7-2.3L15 17l2.3-.7L18 14Z"></path></svg>
+            <span class="sr-only">AI 设置与用量</span>
+          </button>
+        </div>
       </aside>
 
       <section class="network-canvas-panel network">
         <header class="network-canvas-header">
-          <div><span class="archive-kicker">当前画布</span><h2 id="active-network-name">默认网络</h2></div>
-          <div class="actions network-action-bar" role="toolbar" aria-label="网络操作">
-            <button id="integrate-new" class="network-icon-button integrate-new logo-action" aria-label="一键整合新增节点" data-tooltip="一键整合新增节点"><span class="sr-only">一键整合新增节点</span><img src="/assets/guiyun-mark.svg" alt="" /><b id="new-node-count">0</b></button>
-            <button id="create-node" class="network-icon-button" aria-label="手动添加节点" data-tooltip="添加节点"><span class="sr-only">手动添加节点</span><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="8" width="10" height="9" rx="3"></rect><path d="M18 4v6M15 7h6"></path></svg></button>
-            <button id="create-edge" class="network-icon-button" aria-label="手动添加关系" data-tooltip="添加关系"><span class="sr-only">手动添加关系</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="7" r="3"></circle><path d="m9 11 6-3"></path><path d="M18 15v6M15 18h6"></path></svg></button>
-            <button id="ai-settings" class="network-icon-button" aria-label="AI 设置" data-tooltip="AI 设置"><span class="sr-only">AI 设置</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"></path></svg></button>
-            <button id="ai-connect" class="network-icon-button primary" aria-label="AI 连接节点" data-tooltip="AI 连接"><span class="sr-only">AI 连接节点</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path><circle cx="5" cy="17" r="2.5"></circle><circle cx="19" cy="17" r="2.5"></circle><path d="M7.5 17h9"></path></svg></button>
-            <button id="ai-node" class="network-icon-button" aria-label="总结节点" data-tooltip="总结节点"><span class="sr-only">总结节点</span><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3"></rect><path d="M8.5 9h7M8.5 13h5"></path></svg></button>
-            <button id="ai-network" class="network-icon-button" aria-label="总结网络" data-tooltip="总结网络"><span class="sr-only">总结网络</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"></circle><circle cx="18" cy="7" r="2.5"></circle><circle cx="12" cy="18" r="2.5"></circle><path d="m8 8.5 2.7 7M16 8.5l-2.7 7M8.5 7h7"></path></svg></button>
+          <div class="network-canvas-title">
+            <button id="expand-left-panel" class="network-panel-toggle panel-toggle-reopen" type="button" aria-label="展开知识网络导航" data-tooltip="展开左栏" hidden>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M8 3v18"></path></svg>
+            </button>
+            <div><span class="archive-kicker">当前画布</span><h2 id="active-network-name">默认网络</h2></div>
+          </div>
+          <div class="network-header-controls">
+            <div class="actions network-action-bar" role="toolbar" aria-label="网络操作">
+              <button id="integrate-new" class="network-primary-action integrate-new logo-action" aria-label="一键整合新增节点" data-tooltip="一键整合新增节点"><img src="/assets/guiyun-mark.svg" alt="" /><span>一键整合</span><b id="new-node-count">0</b></button>
+              <div class="network-edit-group">
+                <button id="network-edit-toggle" class="network-primary-action" type="button" aria-expanded="false" aria-controls="network-edit-menu">
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg><span>编辑网络</span>
+                </button>
+                <div id="network-edit-menu" class="network-edit-menu" role="menu" hidden>
+                  <button id="create-node" role="menuitem" aria-label="手动添加节点"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="8" width="10" height="9" rx="3"></rect><path d="M18 4v6M15 7h6"></path></svg><span><b>添加节点</b><small>手动创建一个知识节点</small></span></button>
+                  <button id="create-edge" role="menuitem" aria-label="手动添加关系"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="7" r="3"></circle><path d="m9 11 6-3"></path><path d="M18 15v6M15 18h6"></path></svg><span><b>添加关系</b><small>连接两个已有节点</small></span></button>
+                  <button id="ai-connect" role="menuitem" aria-label="AI 连接节点"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path><circle cx="5" cy="17" r="2.5"></circle><circle cx="19" cy="17" r="2.5"></circle><path d="M7.5 17h9"></path></svg><span><b>AI 连接</b><small>生成待确认的关系草案</small></span></button>
+                  <button id="ai-node" role="menuitem"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3"></rect><path d="M8.5 9h7M8.5 13h5"></path></svg><span><b>总结节点</b><small>总结选择的节点内容</small></span></button>
+                  <button id="ai-network" role="menuitem"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"></circle><circle cx="18" cy="7" r="2.5"></circle><circle cx="12" cy="18" r="2.5"></circle><path d="m8 8.5 2.7 7M16 8.5l-2.7 7M8.5 7h7"></path></svg><span><b>总结网络</b><small>生成全网总结草案</small></span></button>
+                </div>
+              </div>
+            </div>
+            <button id="expand-right-panel" class="network-panel-toggle panel-toggle-reopen" type="button" aria-label="展开对象详情" data-tooltip="展开右栏" hidden>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><g transform="translate(24 0) scale(-1 1)"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M8 3v18"></path></g></svg>
+            </button>
           </div>
         </header>
         <div id="graph"></div>
         <div id="summary" class="summary" hidden></div>
       </section>
 
-      <aside class="network-inspector">
+      <aside class="network-inspector" aria-label="对象详情与待确认草案">
+        <button id="collapse-right-panel" class="network-panel-toggle panel-toggle-inside panel-toggle-right" type="button" aria-label="收起对象详情" data-tooltip="收起右栏">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><g transform="translate(24 0) scale(-1 1)"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M8 3v18"></path></g></svg>
+        </button>
         <section>
           <div class="heading"><b>对象详情</b><small>点击节点或关系</small></div>
           <div id="node-detail" class="detail"><p>选择节点或关系查看来源、说明和编辑操作。</p></div>
@@ -65,6 +96,7 @@
           <div id="proposals"></div>
         </section>
       </aside>
+      <button id="network-panel-scrim" class="network-panel-scrim" type="button" aria-label="关闭侧栏" hidden></button>
     </main>
 
     <div id="network-dialog" class="modal" role="dialog" aria-modal="true" hidden>
