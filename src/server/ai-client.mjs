@@ -21,6 +21,11 @@ export const AI_PROVIDERS = {
     baseUrl: "https://api.openai.com",
     models: ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"],
   },
+  "openai-next": {
+    name: "OpenAI Next（兼容协议）",
+    baseUrl: "https://api.openai-next.com/v1",
+    models: ["gpt-5.6-sol", "gpt-6-astra", "deepseek-v4-flash"],
+  },
 };
 
 function estimateTokens(value) {

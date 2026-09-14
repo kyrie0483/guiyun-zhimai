@@ -12,7 +12,7 @@
 6. 将同一个完整地址写入 `ZHIHU_OAUTH_REDIRECT_URI`，并配置其余三个知乎 Secret 后重新部署。
 7. 打开 `/api/health`，确认 `zhihuConfigured`、`oauthConfigured` 和 `deployment.redirectMatchesPublicUrl` 都为 `true`。
 8. 在 Upstash 创建 Redis，向 Render 配置 `UPSTASH_REDIS_REST_URL` 和 `UPSTASH_REDIS_REST_TOKEN`。
-9. 配置 `AI_TRIAL_PROVIDER`、`AI_TRIAL_MODEL`、`AI_TRIAL_API_KEY` 和每用户累计额度 `AI_TRIAL_TOKEN_LIMIT`；站点 Key 不得写入仓库。
+9. 配置 `AI_TRIAL_PROVIDER`、`AI_TRIAL_MODEL`、`AI_TRIAL_API_KEY` 和每用户累计额度 `AI_TRIAL_TOKEN_LIMIT`；OpenAI Next 对应 `openai-next` / `gpt-5.6-sol`，站点 Key 不得写入仓库。
 10. 用无痕窗口实际完成登录、搜索、归档、站点试用、自带 Key、AI 草案、拒绝和确认写入。
 
 `PUBLIC_BASE_URL` 与回调地址的协议、域名、端口、路径和尾部斜杠必须完全匹配。生产 OAuth 回调必须是 HTTPS。

@@ -13,7 +13,7 @@
 - 多知识网络、确定性力导向布局、曲线关系、查看/编辑/删除和级联清理；
 - 阅读归档与网络工作台分为独立页面，归档后可进入对应网络，节点可返回原文位置；
 - 归档阶段不调用 AI；网络页会汇总待整合的新节点，由用户一键生成关系草案并逐条确认；
-- Qwen、DeepSeek、Kimi、OpenAI 四种模型仅生成连接或总结草案，拒绝不写入、确认后才写入；
+- OpenAI Next、Qwen、DeepSeek、Kimi、OpenAI 五种服务仅生成连接或总结草案，拒绝不写入、确认后才写入；
 - 用户可在当前标签页临时配置自己的 API Key，或登录知乎后使用按用户累计 Token 的站点试用；
 - 知乎 OAuth `state` 校验、服务端 Token 保管和独立用户资料页；
 - OAuth 用户关注与创作信息的双凭证服务端接口，均支持分页加载；
@@ -46,7 +46,7 @@ npm run dev
 | `ZHIHU_OAUTH_APP_ID` | 赛事项目 OAuth App ID |
 | `ZHIHU_OAUTH_APP_KEY` | 仅服务端使用的 OAuth App Key |
 | `ZHIHU_OAUTH_REDIRECT_URI` | 必须与赛事页面登记的公网 HTTPS 回调完全一致 |
-| `AI_TRIAL_PROVIDER` / `AI_TRIAL_MODEL` | 站点试用所用的供应商和模型 |
+| `AI_TRIAL_PROVIDER` / `AI_TRIAL_MODEL` | 站点试用所用的供应商和模型；OpenAI Next 使用 `openai-next` / `gpt-5.6-sol` |
 | `AI_TRIAL_API_KEY` | 站点承担费用的模型 Key，只能配置在服务端 |
 | `AI_TRIAL_TOKEN_LIMIT` | 每个知乎登录用户的累计试用 Token，默认 `20000` |
 | `AI_MAX_OUTPUT_TOKENS` | 单次模型输出上限，默认 `2000` |

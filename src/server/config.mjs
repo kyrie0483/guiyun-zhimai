@@ -75,9 +75,9 @@ export function loadConfig(env = process.env) {
       oauthRedirectUri,
     },
     ai: {
-      trialProvider: optional(env.AI_TRIAL_PROVIDER) ?? "deepseek",
+      trialProvider: optional(env.AI_TRIAL_PROVIDER) ?? "openai-next",
       trialApiKey: optional(env.AI_TRIAL_API_KEY),
-      trialModel: optional(env.AI_TRIAL_MODEL) ?? "deepseek-v4-flash",
+      trialModel: optional(env.AI_TRIAL_MODEL) ?? "gpt-5.6-sol",
       trialTokenLimit: parsePositiveInteger(
         env.AI_TRIAL_TOKEN_LIMIT,
         20_000,

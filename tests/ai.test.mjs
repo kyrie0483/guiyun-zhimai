@@ -45,6 +45,34 @@ test("自带 Key 只发送到固定供应商且不消耗站点额度", async () 
   assert.equal(JSON.stringify(response).includes("user-secret"), false);
 });
 
+test("OpenAI Next 使用官方兼容地址且不回传 API Key", async () => {
+  let requested;
+  const quota = {
+    configured: false,
+    async status() { return { limit: 0, used: 0, remaining: 0 }; },
+  };
+  const ai = createAiClient({
+    trial: { provider: "openai-next", model: "gpt-5.6-sol", apiKey: "", maxOutputTokens: 2_000 },
+    quota,
+    fetchImpl: async (url, options) => {
+      requested = { url, options };
+      return modelResponse({ note: "已生成归档说明", edges: [] });
+    },
+  });
+  const response = await ai.assist({
+    ai: { mode: "own", provider: "openai-next", model: "gpt-5.6-sol", apiKey: "next-secret" },
+    prepared,
+    validateResult: value => value,
+  }, null);
+  const requestBody = JSON.parse(requested.options.body);
+  assert.equal(requested.url, "https://api.openai-next.com/v1/chat/completions");
+  assert.equal(requested.options.headers.Authorization, "Bearer next-secret");
+  assert.equal(requestBody.model, "gpt-5.6-sol");
+  assert.equal(requestBody.stream, false);
+  assert.equal(JSON.stringify(response).includes("next-secret"), false);
+  assert.equal(ai.providers().some(provider => provider.id === "openai-next"), true);
+});
+
 test("站点试用要求登录并按真实 usage 校准预留额度", async () => {
   const events = [];
   const quota = {
