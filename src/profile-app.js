@@ -1,6 +1,18 @@
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const state = { active: "followees", followees: { items: [], nextOffset: "0", isEnd: false, loaded: false }, contents: { items: [], nextOffset: "0", isEnd: false, loaded: false }, loading: false };
+const localPreview = new URLSearchParams(location.search).get("preview") === "1" && new Set(["localhost", "127.0.0.1", "::1"]).has(location.hostname);
+const previewData = {
+  user: { name: "归云用户", headline: "把阅读中的线索，整理成可回溯的知识网络。" },
+  followees: [
+    { name: "知识整理者", headline: "关注长期阅读、学习方法与知识管理", followerCount: 1280 },
+    { name: "知乎创作者", headline: "分享真实经验与有依据的见解", followerCount: 385768665 },
+  ],
+  contents: [
+    { type: "回答", title: "如何把零散阅读整理成自己的知识网络？", summary: "从保留来源、主动归档和确认关系开始，让每个节点都能够回到原文。", likeCount: 324 },
+    { type: "文章", title: "归云式阅读：先理解，再连接", summary: "AI 负责提出候选关系，人负责判断什么值得进入自己的知识空间。", likeCount: 186 },
+  ],
+};
 
 async function request(path, options) {
   const response = await fetch(path, options);
@@ -67,6 +79,16 @@ async function activate(kind) {
 }
 
 async function init() {
+  if (localPreview) {
+    document.body.classList.add("profile-preview");
+    renderProfile(previewData.user);
+    state.followees = { items: previewData.followees, nextOffset: "", isEnd: true, loaded: true };
+    state.contents = { items: previewData.contents, nextOffset: "", isEnd: true, loaded: true };
+    $("#profile-message").innerHTML = '<span class="preview-label">本地界面预览</span> 当前展示模拟资料，不代表已经登录知乎。';
+    $("#logout").textContent = "退出预览";
+    renderList("followees");
+    return;
+  }
   try {
     const session = await request("/api/auth/session");
     if (!session.user) return location.replace("/?login=required");
@@ -77,5 +99,5 @@ async function init() {
 
 document.querySelectorAll("[data-tab]").forEach((button) => button.onclick = () => activate(button.dataset.tab));
 $("#load-more").onclick = () => load(state.active, true);
-$("#logout").onclick = async () => { try { await request("/api/auth/logout", { method: "POST" }); location.replace("/"); } catch (error) { toast(error.message); } };
+$("#logout").onclick = async () => { if (localPreview) return location.replace("/"); try { await request("/api/auth/logout", { method: "POST" }); location.replace("/"); } catch (error) { toast(error.message); } };
 init();

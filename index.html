@@ -5,19 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="把知乎和个人阅读中的关键文段归档为可回跳节点，再由 AI 辅助连接与总结。"
+      content="把知乎内容中的关键文段归档为知识节点，再进行连接与总结。"
     />
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2218%22 fill=%22%2312483d%22/><text x=%2232%22 y=%2244%22 text-anchor=%22middle%22 font-size=%2238%22 fill=%22white%22>归</text></svg>"
+      href="/assets/guiyun-mark.svg"
     />
     <title>归云·知脉｜阅读</title>
     <link rel="stylesheet" href="/assets/styles/styles.css" />
+    <link rel="stylesheet" href="/assets/styles/ui.css" />
   </head>
   <body class="reading-page">
     <header class="topbar">
       <a class="brand brand-link" href="/">
-        <b>归云·知脉</b><small>阅读与主动归档</small>
+        <b>归云·知脉</b>
       </a>
       <nav>
         <button id="hot">知乎热榜</button>
@@ -37,18 +38,13 @@
           placeholder="搜索知乎真实经验，例如：大学生第一份实习"
         />
         <button class="primary">搜索知乎</button>
-        <button type="button" id="add-reading">粘贴文章</button>
-        <label class="button file-button">
-          导入 .md
-          <input id="markdown-file" type="file" accept=".md,text/markdown,text/plain" />
-        </label>
       </form>
-      <p id="search-message">搜索和导入只提供阅读来源，只有你的主动归档才会进入网络。</p>
+      <p id="search-message" role="status" aria-live="polite" hidden></p>
     </section>
 
     <main class="workspace reading-workspace">
       <aside class="panel results">
-        <div class="heading"><b>阅读来源</b><small>点击后进入正文</small></div>
+        <div class="heading"><b>阅读来源</b></div>
         <div id="personal-sources"></div>
         <div class="source-divider">知乎发现</div>
         <div id="results"></div>
@@ -56,7 +52,6 @@
       <section class="panel reader">
         <div id="reader-empty" class="empty hero">
           <b>从一段真实阅读开始</b>
-          <p>搜索知乎、粘贴文章或导入 Markdown，选择文段或整篇归档。</p>
         </div>
         <div id="reader-view" hidden>
           <header>
@@ -65,7 +60,7 @@
             <p id="article-meta"></p>
             <div>
               <button id="archive-article" class="guiyun-reader-archive">
-                <span class="guiyun-mark">归</span><span>归档文档至网络</span>
+                <span class="guiyun-mark" aria-hidden="true"></span><span>归档文档至网络</span>
               </button>
               <a
                 id="open-original"
@@ -113,25 +108,13 @@
         </header>
         <div id="archive-source-summary" class="archive-source-summary"></div>
         <div id="archive-targets" class="archive-targets" role="list"></div>
-        <p class="archive-flow-note">这里只归档节点，不自动调用 AI。进入网络后可一次整合所有新增节点。</p>
       </section>
-    </div>
-
-    <div id="reading-dialog" class="modal" role="dialog" aria-modal="true" hidden>
-      <form id="reading-form">
-        <h2>添加个人阅读</h2>
-        <p class="empty">内容只作为阅读来源保存，不会自动生成节点。</p>
-        <label>标题<input id="reading-title" maxlength="120" required /></label>
-        <label>原文链接（可选）<input id="reading-url" type="url" maxlength="2000" placeholder="https://" /></label>
-        <label>文章或 Markdown<textarea id="reading-content" maxlength="2097152" required></textarea></label>
-        <div><button type="button" id="reading-cancel">取消</button><button class="primary">保存并阅读</button></div>
-      </form>
     </div>
 
     <aside id="archive-success" class="archive-success" aria-live="polite" hidden>
       <button id="archive-success-close" aria-label="关闭">×</button>
-      <span class="guiyun-mark">归</span>
-      <div><b id="archive-success-message">归档完成</b><small>节点已加入待整合队列，可前往网络统一处理。</small></div>
+      <span class="guiyun-mark" aria-hidden="true"></span>
+      <div><b id="archive-success-message">归档完成</b><small>已加入待整合队列</small></div>
       <a id="archive-success-link" class="button primary" href="/network">前往网络</a>
     </aside>
 

@@ -11,6 +11,16 @@ function parsePort(value) {
   return port;
 }
 
+function parsePositiveInteger(value, fallback, name) {
+  const normalized = optional(value);
+  if (!normalized) return fallback;
+  const number = Number(normalized);
+  if (!Number.isInteger(number) || number < 1) {
+    throw new Error(`${name} 必须是正整数。`);
+  }
+  return number;
+}
+
 function parseHttpUrl(value, name) {
   const raw = optional(value);
   if (!raw) return undefined;
@@ -63,6 +73,26 @@ export function loadConfig(env = process.env) {
       oauthAppId: optional(env.ZHIHU_OAUTH_APP_ID),
       oauthAppKey: optional(env.ZHIHU_OAUTH_APP_KEY),
       oauthRedirectUri,
+    },
+    ai: {
+      trialProvider: optional(env.AI_TRIAL_PROVIDER) ?? "deepseek",
+      trialApiKey: optional(env.AI_TRIAL_API_KEY),
+      trialModel: optional(env.AI_TRIAL_MODEL) ?? "deepseek-v4-flash",
+      trialTokenLimit: parsePositiveInteger(
+        env.AI_TRIAL_TOKEN_LIMIT,
+        20_000,
+        "AI_TRIAL_TOKEN_LIMIT",
+      ),
+      maxOutputTokens: parsePositiveInteger(
+        env.AI_MAX_OUTPUT_TOKENS,
+        2_000,
+        "AI_MAX_OUTPUT_TOKENS",
+      ),
+      upstashRedisRestUrl: parseHttpUrl(
+        env.UPSTASH_REDIS_REST_URL,
+        "UPSTASH_REDIS_REST_URL",
+      ),
+      upstashRedisRestToken: optional(env.UPSTASH_REDIS_REST_TOKEN),
     },
     deployment: {
       isProduction: nodeEnv === "production",

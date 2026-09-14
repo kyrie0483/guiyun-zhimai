@@ -18,6 +18,27 @@ function proposalMatchesEdge(proposal,edge){
   return proposal.kind==="edge"&&[proposal.payload?.sourceNodeId,proposal.payload?.targetNodeId].sort().join(":")===pair;
 }
 
+export function createNetworkEdge(network,input,{id=crypto.randomUUID(),now=new Date().toISOString()}={}){
+  const sourceNodeId=String(input.sourceNodeId??""),targetNodeId=String(input.targetNodeId??"");
+  if(!network.nodes.some(item=>item.id===sourceNodeId)||!network.nodes.some(item=>item.id===targetNodeId))throw new Error("关系端点不存在");
+  if(sourceNodeId===targetNodeId)throw new Error("不能连接同一个节点");
+  const pair=[sourceNodeId,targetNodeId].sort().join(":");
+  if(network.edges.some(edge=>[edge.sourceNodeId,edge.targetNodeId].sort().join(":")===pair))throw new Error("这两个节点之间已经存在关系");
+  if(!RELATION_TYPES.includes(input.relationType))throw new Error("不支持的关系类型");
+  const edge={id,sourceNodeId,targetNodeId,title:requiredTitle(input.title),rationale:noteValue(input.note),relationType:input.relationType,createdAt:now,updatedAt:now};
+  network.edges.push(edge);bump(network);return edge;
+}
+
+export function createNetworkNode(network,input,{id=crypto.randomUUID(),now=new Date().toISOString()}={}){
+  const title=requiredTitle(input.title),note=noteValue(input.note);
+  if(network.nodes.some(item=>sameTitle(item.title,title)))throw new Error("当前网络中已存在同名节点");
+  const node={
+    id,title,note,type:"manual",anchor:null,integrationStatus:"new",createdBy:"user",createdAt:now,updatedAt:now,
+    source:{contentId:`manual:${id}`,sourceType:"manual",title:"手动创建",author:"本人",canonicalUrl:"",excerpt:note,snapshot:note||title,sourceRevision:1},
+  };
+  network.nodes.push(node);bump(network);return node;
+}
+
 export function updateNetworkNode(network,nodeId,input){
   const node=network.nodes.find(item=>item.id===nodeId);if(!node)throw new Error("节点不存在");
   const title=requiredTitle(input.title);

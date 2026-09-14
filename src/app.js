@@ -4,9 +4,7 @@ import {
 } from "./domain/source-anchor.js";
 import { loadState, saveState } from "./domain/store.js";
 import {
-  isPrivateMarkdownFile,
   markdownToSafeHtml,
-  normalizeImportedMarkdown,
   safeReadingUrl,
 } from "./domain/personal-reading.js";
 import {
@@ -15,11 +13,6 @@ import {
   resolveMarkdownSourceAnchor,
 } from "./domain/markdown-source-anchor.js";
 import { auditGuiyunState } from "./domain/product-guardrails.js";
-
-const interfaceStyles = document.createElement("link");
-interfaceStyles.rel = "stylesheet";
-interfaceStyles.href = "/assets/styles/ui.css";
-document.head.append(interfaceStyles);
 
 let state = loadState();
 let current = null;
@@ -98,7 +91,7 @@ function renderPersonalSources() {
             `<article class="result personal-source"><span>${source.origin === "zhihu" ? "已加入 · 知乎内容" : `个人阅读 · ${source.format === "markdown" ? "Markdown" : "文章"}`}</span><h3>${escapeHtml(source.title)}</h3><p>${escapeHtml((source.content || source.excerpt || "").slice(0, 180))}</p><button data-source="${escapeHtml(source.id)}">打开阅读</button></article>`,
         )
         .join("")
-    : '<p class="empty source-empty">还没有个人阅读。可粘贴文章或导入 Markdown。</p>';
+    : "";
   root.querySelectorAll("[data-source]").forEach((button) => {
     button.onclick = () => {
       const source = state.sources.find((item) => item.id === button.dataset.source);
@@ -138,14 +131,6 @@ function saveSearchResult(item) {
   openItem(source);
   toast("已加入左侧阅读来源");
   return source;
-}
-
-function openReadingDialog(data = {}) {
-  $("#reading-title").value = data.title ?? "";
-  $("#reading-url").value = data.url ?? "";
-  $("#reading-content").value = data.content ?? "";
-  $("#reading-dialog").hidden = false;
-  $("#reading-title").focus();
 }
 
 function sourceHighlightKey(item = current) {
@@ -235,13 +220,15 @@ async function search(query, hot = false) {
         : `/api/zhihu/search?q=${encodeURIComponent(query)}&count=8`,
     );
     if (requestId !== latestSearchRequest) return;
-    $("#search-message").textContent = data.demo
+    const statusMessage = data.demo
       ? "知乎接口暂时不可用，当前显示演示结果。"
       : data.limited
         ? data.fallbackReason === "quota"
           ? "本次知乎搜索额度已用完，现显示赛事公开内容；额度恢复后自动切回全站搜索。"
-          : "正在搜索知乎赛事公开内容；加入左侧后即可阅读和归档。"
-        : "来自知乎开放平台；加入左侧后即可阅读和归档。";
+          : "当前显示知乎赛事公开内容。"
+        : "";
+    $("#search-message").textContent = statusMessage;
+    $("#search-message").hidden = !statusMessage;
     $("#results").innerHTML = data.items.length
       ? data.items
           .map(
@@ -439,55 +426,10 @@ async function init() {
   const issues = auditGuiyunState(state);
   if (issues.length) console.warn("归云数据约束检查发现问题", issues);
   if (!openRequestedNode()) {
-    $("#results").innerHTML = '<p class="empty">输入关键词后开始搜索，不会在页面打开时消耗接口额度。</p>';
+    $("#results").innerHTML = "";
   }
 }
 
-$("#add-reading").onclick = () => openReadingDialog();
-$("#reading-cancel").onclick = () => ($("#reading-dialog").hidden = true);
-$("#markdown-file").onchange = async (event) => {
-  const file = event.target.files?.[0];
-  event.target.value = "";
-  if (!file) return;
-  if (!isPrivateMarkdownFile(file)) return toast("请选择不超过 2MB 的 .md 文件");
-  try {
-    openReadingDialog({
-      title: file.name.replace(/\.md$/i, ""),
-      content: normalizeImportedMarkdown(await file.text()),
-    });
-  } catch {
-    toast("Markdown 文件读取失败");
-  }
-};
-$("#reading-form").onsubmit = (event) => {
-  event.preventDefault();
-  const title = $("#reading-title").value.trim();
-  const content = normalizeImportedMarkdown($("#reading-content").value);
-  const rawUrl = $("#reading-url").value.trim();
-  const url = safeReadingUrl(rawUrl);
-  if (!title || !content.trim()) return;
-  if (rawUrl && !url) return toast("原文链接只支持 http 或 https");
-  const source = {
-    id: crypto.randomUUID(),
-    origin: "personal",
-    format: "markdown",
-    type: "个人文章",
-    title,
-    author: "我的阅读",
-    url,
-    canonicalUrl: url,
-    content,
-    excerpt: content,
-    editedAt: 1,
-    createdAt: new Date().toISOString(),
-  };
-  state.sources.unshift(source);
-  saveState(state);
-  $("#reading-dialog").hidden = true;
-  renderPersonalSources();
-  openItem(source);
-  toast("已保存为阅读来源，尚未创建节点");
-};
 $("#search-form").onsubmit = (event) => {
   event.preventDefault();
   const query = $("#search-input").value.trim();

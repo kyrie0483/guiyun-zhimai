@@ -64,7 +64,7 @@ function isTrustedOrigin(req, publicBaseUrl) {
   return allowed.has(origin);
 }
 
-export function createApplication({ root, config, zhihu, oauth }) {
+export function createApplication({ root, config, zhihu, oauth, ai }) {
   const absoluteRoot = resolve(root);
 
   async function routeApi(req, res, url, id) {
@@ -93,6 +93,8 @@ export function createApplication({ root, config, zhihu, oauth }) {
             assistant: true,
             hackathonContent: true,
             oauthUserContent: zhihu.configured && oauth.configured,
+            aiProviders: Boolean(ai),
+            aiTrial: Boolean(ai?.trialAvailable && oauth.configured),
           },
         },
         id,
@@ -111,6 +113,22 @@ export function createApplication({ root, config, zhihu, oauth }) {
     }
     if (req.method === "GET" && url.pathname === "/api/zhihu/quota") {
       return json(res, 200, await zhihu.quota(), id);
+    }
+    if (req.method === "GET" && url.pathname === "/api/ai/config") {
+      const session = oauth.session(req);
+      return json(res, 200, {
+        providers: ai.providers(),
+        trial: {
+          available: ai.trialAvailable && oauth.configured,
+          loginRequired: !session,
+          ...(session && ai.trialAvailable ? await ai.quota(session.uid) : {}),
+        },
+      }, id);
+    }
+    if (req.method === "GET" && url.pathname === "/api/ai/quota") {
+      const session = oauth.session(req);
+      if (!session) throw new AppError("AUTH_REQUIRED", "请先使用知乎账号登录。", 401);
+      return json(res, 200, await ai.quota(session.uid), id);
     }
     if (req.method === "GET" && url.pathname === "/api/zhihu/stories") {
       return json(res, 200, await zhihu.hackathonContent("story"), id);
@@ -136,7 +154,22 @@ export function createApplication({ root, config, zhihu, oauth }) {
       return json(res, 200, await zhihu.userFollowees(token, url.searchParams.get("limit"), url.searchParams.get("offset")), id);
     }
     if (req.method === "POST" && url.pathname === "/api/zhihu/ai") {
-      return json(res, 200, await zhihu.assist(await readJson(req)), id);
+      const input = await readJson(req);
+      const prepared = zhihu.prepareExternalAssist(input);
+      return json(res, 200, await ai.assist({
+        prepared,
+        ai: input.ai,
+        validateResult: (result) => zhihu.validateAssist(
+          prepared.task,
+          prepared.nodes,
+          result,
+          {
+            edges: prepared.edges,
+            edgeId: prepared.edgeId,
+            candidateNodeIds: prepared.candidateNodeIds,
+          },
+        ),
+      }, oauth.session(req)), id);
     }
     if (req.method === "GET" && url.pathname === "/api/auth/session") {
       return json(res, 200, { user: oauth.session(req) }, id);

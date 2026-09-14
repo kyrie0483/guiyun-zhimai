@@ -4,12 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="归云独立知识网络工作区。" />
+    <link rel="icon" href="/assets/guiyun-mark.svg" />
     <title>归云·知脉｜归云网络</title>
     <link rel="stylesheet" href="/assets/styles/styles.css" />
+    <link rel="stylesheet" href="/assets/styles/ui.css" />
   </head>
   <body class="network-page">
     <header class="topbar network-topbar">
-      <a class="brand brand-link" href="/"><b>归云·知脉</b><small>归云网络工作区</small></a>
+      <a class="brand brand-link" href="/"><b>归云·知脉</b></a>
       <nav>
         <a class="button" href="/">← 返回阅读</a>
         <span id="api-state" class="badge">检查接口…</span>
@@ -22,33 +24,35 @@
         <div class="network-page-heading">
           <span class="archive-kicker">你的知识空间</span>
           <h1>归云网络</h1>
-          <p>切换网络不会重置画布中的聚焦、选择与浏览历史。</p>
         </div>
         <label class="network-select-label" for="network-select">当前网络</label>
-        <select id="network-select" aria-label="切换知识网络"></select>
-        <button id="create-network" class="primary wide-button">＋ 新建网络</button>
+        <div class="network-select-row">
+          <select id="network-select" aria-label="切换知识网络"></select>
+          <button id="create-network" class="network-create-button" type="button" aria-label="新建网络" data-tooltip="新建网络">
+            <img src="/assets/guiyun-mark.svg" alt="" /><span aria-hidden="true">＋</span>
+          </button>
+        </div>
         <dl class="network-stats">
           <div><dt id="node-count">0</dt><dd>节点</dd></div>
           <div><dt id="edge-count">0</dt><dd>关系</dd></div>
         </dl>
-        <section class="network-principle">
-          <b>人选择，AI 连接</b>
-          <p>AI 不会创建节点，所有连接和总结都需要你确认。</p>
-        </section>
       </aside>
 
       <section class="network-canvas-panel network">
         <header class="network-canvas-header">
           <div><span class="archive-kicker">当前画布</span><h2 id="active-network-name">默认网络</h2></div>
-          <div class="actions">
-            <button id="integrate-new" class="integrate-new primary"><span>一键整合新增节点</span><b id="new-node-count">0</b></button>
-            <button id="ai-connect" class="primary">AI 连接节点</button>
-            <button id="ai-node">总结节点</button>
-            <button id="ai-network">总结网络</button>
+          <div class="actions network-action-bar" role="toolbar" aria-label="网络操作">
+            <button id="integrate-new" class="network-icon-button integrate-new logo-action" aria-label="一键整合新增节点" data-tooltip="一键整合新增节点"><span class="sr-only">一键整合新增节点</span><img src="/assets/guiyun-mark.svg" alt="" /><b id="new-node-count">0</b></button>
+            <button id="create-node" class="network-icon-button" aria-label="手动添加节点" data-tooltip="添加节点"><span class="sr-only">手动添加节点</span><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="8" width="10" height="9" rx="3"></rect><path d="M18 4v6M15 7h6"></path></svg></button>
+            <button id="create-edge" class="network-icon-button" aria-label="手动添加关系" data-tooltip="添加关系"><span class="sr-only">手动添加关系</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="7" r="3"></circle><path d="m9 11 6-3"></path><path d="M18 15v6M15 18h6"></path></svg></button>
+            <button id="ai-settings" class="network-icon-button" aria-label="AI 设置" data-tooltip="AI 设置"><span class="sr-only">AI 设置</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"></path></svg></button>
+            <button id="ai-connect" class="network-icon-button primary" aria-label="AI 连接节点" data-tooltip="AI 连接"><span class="sr-only">AI 连接节点</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path><circle cx="5" cy="17" r="2.5"></circle><circle cx="19" cy="17" r="2.5"></circle><path d="M7.5 17h9"></path></svg></button>
+            <button id="ai-node" class="network-icon-button" aria-label="总结节点" data-tooltip="总结节点"><span class="sr-only">总结节点</span><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="3"></rect><path d="M8.5 9h7M8.5 13h5"></path></svg></button>
+            <button id="ai-network" class="network-icon-button" aria-label="总结网络" data-tooltip="总结网络"><span class="sr-only">总结网络</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"></circle><circle cx="18" cy="7" r="2.5"></circle><circle cx="12" cy="18" r="2.5"></circle><path d="m8 8.5 2.7 7M16 8.5l-2.7 7M8.5 7h7"></path></svg></button>
           </div>
         </header>
         <div id="graph"></div>
-        <div id="summary" class="summary">AI 不会创建节点；连接和总结都需要你确认。</div>
+        <div id="summary" class="summary" hidden></div>
       </section>
 
       <aside class="network-inspector">
@@ -57,7 +61,7 @@
           <div id="node-detail" class="detail"><p>选择节点或关系查看来源、说明和编辑操作。</p></div>
         </section>
         <section class="proposal-panel">
-          <div class="heading"><b>待确认草案</b><small>不会自动写入</small></div>
+          <div class="heading"><b>待确认草案</b></div>
           <div id="proposals"></div>
         </section>
       </aside>
@@ -69,6 +73,42 @@
         <p class="empty">不同网络的节点、关系、总结和 AI 草案彼此隔离。</p>
         <label>网络名称<input id="network-name" maxlength="60" placeholder="例如：大学生职业成长" required /></label>
         <div><button type="button" id="network-cancel">取消</button><button class="primary">创建并切换</button></div>
+      </form>
+    </div>
+
+    <div id="edge-dialog" class="modal" role="dialog" aria-modal="true" aria-labelledby="edge-dialog-title" hidden>
+      <form id="edge-form" class="edge-create-form">
+        <header>
+          <div><span>归云网络 · 人工连接</span><h2 id="edge-dialog-title">新建连接</h2></div>
+          <button type="button" id="edge-close" aria-label="关闭">×</button>
+        </header>
+        <div class="edge-form-body">
+          <div class="edge-endpoint-grid">
+            <label>起点节点<select id="edge-source" required></select></label>
+            <span class="edge-direction" aria-hidden="true">↔</span>
+            <label>目标节点<select id="edge-target" required></select></label>
+          </div>
+          <label>关系类型<select id="edge-relation"><option value="related">相关</option><option value="supports">支持</option><option value="supplements">补充</option><option value="contradicts">对照</option><option value="condition_of">条件</option><option value="example_of">示例</option></select></label>
+          <label>关系标题<input id="edge-title" maxlength="200" required /></label>
+          <label>关系说明（可选）<textarea id="edge-note" maxlength="10000" rows="3" placeholder="补充理由或依据"></textarea></label>
+          <p id="edge-error" class="edge-form-error" hidden></p>
+        </div>
+        <footer><button type="button" id="edge-cancel">取消</button><button class="primary">创建关系</button></footer>
+      </form>
+    </div>
+
+    <div id="node-dialog" class="modal" role="dialog" aria-modal="true" aria-labelledby="node-dialog-title" hidden>
+      <form id="node-form" class="edge-create-form node-create-form">
+        <header>
+          <div><span>归云网络 · 人工节点</span><h2 id="node-dialog-title">新建节点</h2></div>
+          <button type="button" id="node-close" aria-label="关闭">×</button>
+        </header>
+        <div class="edge-form-body">
+          <label>节点标题<input id="node-title" maxlength="200" placeholder="例如：OAuth 回调安全" required /></label>
+          <label>节点说明（可选）<textarea id="node-note" maxlength="10000" rows="4" placeholder="补充内容、依据或你的理解"></textarea></label>
+          <p id="node-error" class="edge-form-error" hidden></p>
+        </div>
+        <footer><button type="button" id="node-cancel">取消</button><button class="primary">创建节点</button></footer>
       </form>
     </div>
 
